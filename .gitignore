@@ -1,0 +1,4 @@
+# Saidas geradas
+*.png
+__pycache__/
+*.pyc
