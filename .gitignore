@@ -5,5 +5,9 @@ __pycache__/
 
 # Dados de origem (proprietarios) e saidas derivadas
 data/
+saida/
 *.xlsx
 *.csv
+*.json
+# Dashboard renderizado com dados (proprietario) - o gerador fica versionado
+dashboard*.html
