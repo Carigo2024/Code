@@ -507,15 +507,39 @@ def exporta_json(model, caminho):
 # Reconciliacao (previa da Etapa 7)
 # --------------------------------------------------------------------------- #
 def reconcilia(model):
+    """Auto-validacao: soma crua dos arquivos vs modelo (roda a cada atualizacao)."""
+    import openpyxl
+
     cfg = model["cfg"]
-    # soma bruta do recebido UPI (meses fechados) vs modelo
+    # ---- forecast: soma crua de TODAS as celulas de mes menos a col duplicada ----
+    raw_all = dup = 0.0
+    for caminho in sorted(glob.glob(os.path.join(cfg.data_dir, "Order_*_2026.xlsx"))):
+        wb = openpyxl.load_workbook(caminho, read_only=True, data_only=True)
+        linhas = list(wb["FORECAST"].iter_rows(min_row=2, values_only=True))
+        wb.close()
+        hdr = linhas[0]
+        seen = set()
+        for j in range(4, len(hdr)):
+            tk = parse_header_month(hdr[j])
+            if tk is None:
+                continue
+            colsum = sum(r[j] for r in linhas[1:] if isinstance(r[j], (int, float)))
+            raw_all += colsum
+            if tk in seen:
+                dup += colsum
+            else:
+                seen.add(tk)
+    grain = model["fc"].fcst.sum()
+    dif_fc = raw_all - dup - grain
+
     bruto = model["act"][model["act"].alvo <= model["closed_max"]].recv.sum()
-    modelo = model["act_o"].recv.sum()  # overlap only
-    print("\n--- Reconciliacao (previa) ---")
-    print(f"Recebido UPI bruto (fechado, todos itens):  {bruto:,.0f}")
-    print(f"Recebido no modelo (itens comparaveis):     {modelo:,.0f}")
-    print(f"Diferenca = itens recebidos sem forecast:   {bruto-modelo:,.0f} "
-          f"({len(model['orfaos']['recebido_sem_previsao'])} itens)")
+    modelo = model["act_o"].recv.sum()
+    print("\n--- Reconciliacao (auto-validacao) ---")
+    print(f"Forecast: soma crua {raw_all:,.0f} - duplicada {dup:,.0f} = {raw_all-dup:,.0f} "
+          f"| grao {grain:,.0f} | DIF {dif_fc:,.0f} {'OK' if abs(dif_fc)<1 else '*** REVISAR'}")
+    print(f"Recebido UPI (fechado): bruto {bruto:,.0f} | modelo comparavel {modelo:,.0f} "
+          f"| itens recebidos sem forecast: {len(model['orfaos']['recebido_sem_previsao'])}")
+    return abs(dif_fc) < 1
 
 
 # --------------------------------------------------------------------------- #
