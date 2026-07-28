@@ -2,3 +2,8 @@
 *.png
 __pycache__/
 *.pyc
+
+# Dados de origem (proprietarios) e saidas derivadas
+data/
+*.xlsx
+*.csv
