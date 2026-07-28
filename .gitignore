@@ -9,5 +9,5 @@ saida/
 *.xlsx
 *.csv
 *.json
-# Dashboard renderizado com dados (proprietario) - o gerador fica versionado
-dashboard*.html
+# Dashboard renderizado com dados (proprietario) - template e gerador ficam versionados
+/dashboard.html
