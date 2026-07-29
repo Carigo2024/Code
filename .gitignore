@@ -11,3 +11,8 @@ saida/
 *.json
 # Dashboard renderizado com dados (proprietario) - template e gerador ficam versionados
 /dashboard.html
+
+# Artefatos de build do PyInstaller (o .spec e o .bat ficam versionados)
+build/
+dist/
+*.ico

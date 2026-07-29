@@ -39,6 +39,7 @@ O passo manual é só soltar o arquivo na pasta; o resto é automático (~7 s).
 | `dashboard_build.py` | Monta o payload e injeta no template HTML |
 | `dashboard_template.html` | Aparência/lógica do dashboard (JS puro, SVG, sem CDN) |
 | `atualizar.py` | Rotina mensal em um comando (roda os dois acima + valida) |
+| `atualizar.spec` · `build_exe.bat` · `BUILD_EXE.md` | Gerar um `.exe` para atualizar **sem Python** |
 | `data/` | Entradas: `Order_NN_2026.xlsx` (safras) + `Received_itens_2026.xlsx` |
 | `saida/` | Saídas: `dashboard.html`, `forecast_accuracy.xlsx`, CSVs, JSON |
 
