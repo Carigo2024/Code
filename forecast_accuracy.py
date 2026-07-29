@@ -530,13 +530,15 @@ def exporta_excel(model, caminho):
             ws.add_image(img)
         return 8  # conteudo comeca aqui
 
-    def escreve(ws, df, titulo=None, logo=False, banding=False):
+    def escreve(ws, df, titulo=None, logo=False, banding=False, fmt=None):
+        fmt = fmt or {}
+        cols = list(df.columns)
         start = caixa_logo(ws) if logo else 1
         r0 = start
         if titulo:
             ws.cell(r0, 1, titulo).font = TIT_FONT
             r0 = start + 2
-        for j, c in enumerate(df.columns, 1):
+        for j, c in enumerate(cols, 1):
             cell = ws.cell(r0, j, c)
             cell.fill = HDR; cell.font = HDR_FONT
             cell.alignment = Alignment(vertical="center")
@@ -546,9 +548,12 @@ def exporta_excel(model, caminho):
                 cell = ws.cell(i, j, v)
                 if zebra:
                     cell.fill = BAND
+                nf = fmt.get(cols[j - 1])
+                if nf and isinstance(v, (int, float)):
+                    cell.number_format = nf
         ws.freeze_panes = ws.cell(r0 + 1, 1)
-        ws.auto_filter.ref = f"A{r0}:{get_column_letter(len(df.columns))}{r0+len(df)}"
-        for j, c in enumerate(df.columns, 1):
+        ws.auto_filter.ref = f"A{r0}:{get_column_letter(len(cols))}{r0+len(df)}"
+        for j, c in enumerate(cols, 1):
             ws.column_dimensions[get_column_letter(j)].width = min(28, max(10, len(str(c)) + 3))
 
     ws = wb.active; ws.title = "leia-me"
@@ -567,9 +572,17 @@ def exporta_excel(model, caminho):
         f"  sob_controle: WAPE_acum<={cfg.t_controle_acum} e WAPE_mes<={cfg.t_controle_mes}",
         f"  vies: |bias|>={cfg.t_bias}   timing: WAPE_acum<={cfg.t_timing_acum} e WAPE_mes>={cfg.t_timing_mes}",
         "",
-        "Abas: grao_forecast e recebido_upi sao as tabelas-fato (carregar no Power Pivot);",
-        "mestre_itens e a tabela mestre de metricas por item; cobertura e a grade lag x mes.",
-        "Para Power Pivot: Dados > Obter Dados > Deste Arquivo, e relacione por 'item'/'alvo'.",
+        "Abas:",
+        "  mestre_itens     - metricas por item na leitura honesta (lag {}).".format(cfg.lag_honesto),
+        "  metricas_por_lag - MESMAS metricas por item em CADA lag (0..4 + consolidado);",
+        "                     use com uma Segmentacao de Dados no campo 'lag' para escolher a leitura.",
+        "  grao_forecast    - tabela-fato Item x Alvo x Safra x LAG x fcst (Power Pivot).",
+        "  recebido_upi     - tabela-fato Item x Alvo x recv (Power Pivot).",
+        "  cobertura        - grade mes x lag.",
+        "",
+        "Percentuais ja formatados (bias, WAPE, acuracia, churn). Para Power Pivot:",
+        "Dados > Obter Dados > Deste Arquivo, e relacione grao/recebido por 'item'/'alvo'.",
+        "O dashboard HTML tem um seletor de Lag equivalente (Lag 0 = mesmo mes ... Consolidado).",
     ]
     for i, t in enumerate(notas, logo_start):
         cell = ws.cell(i, 1, t)
@@ -577,16 +590,38 @@ def exporta_excel(model, caminho):
             cell.font = TIT_FONT
     ws.column_dimensions["A"].width = 95
 
-    escreve(wb.create_sheet("mestre_itens"), model["mestre"],
-            "Tabela mestre de itens", logo=True, banding=True)
+    FMT_PCT = "0.0%"
+    FMT_MIL = "#,##0"
+    fmt_mestre = {"vol_recv": FMT_MIL, "F_lag": FMT_MIL, "A": FMT_MIL,
+                  "bias": FMT_PCT, "wape_mes": FMT_PCT, "wape_acum": FMT_PCT,
+                  "acuracia": FMT_PCT, "tracking_signal": "0.00", "churn": FMT_PCT}
+    mestre_show = model["mestre"].drop(columns=[c for c in ["cum_pct"] if c in model["mestre"].columns])
+    escreve(wb.create_sheet("mestre_itens"), mestre_show,
+            "Tabela mestre de itens", logo=True, banding=True, fmt=fmt_mestre)
+
+    # ---- metricas por lag (tidy: para Segmentacao de Lag no Excel) ----
+    plag = []
+    for k, v in model["views"].items():
+        lagname = "consolidado" if k == "cons" else f"lag {k}"
+        for m in v["metrics"]:
+            plag.append(dict(lag=lagname, item=m["item"], previsto=m["F_lag"], recebido=m["A"],
+                             bias=m["bias"], wape_mes=m["wape_mes"], wape_acum=m["wape_acum"],
+                             acuracia=m["acuracia"], tracking_signal=m["tracking_signal"],
+                             classe=m["classe_label"]))
+    fmt_plag = {"previsto": FMT_MIL, "recebido": FMT_MIL, "bias": FMT_PCT,
+                "wape_mes": FMT_PCT, "wape_acum": FMT_PCT, "acuracia": FMT_PCT,
+                "tracking_signal": "0.00"}
+    escreve(wb.create_sheet("metricas_por_lag"), pd.DataFrame(plag),
+            "Metricas por item x lag (use Segmentacao no campo 'lag')", fmt=fmt_plag)
+
     cob = pd.DataFrame([{"alvo": c["alvo"], "lags": str(c["lags"]),
                          "tem_realizado": c["tem_realizado"]} for c in model["cobertura"]])
     escreve(wb.create_sheet("cobertura"), cob,
             "Grade de cobertura (mes x lag)", logo=True, banding=True)
     gf = model["fc"].assign(alvo=model["fc"].alvo.map(yl), safra=model["fc"].safra.map(yl))
-    escreve(wb.create_sheet("grao_forecast"), gf)
+    escreve(wb.create_sheet("grao_forecast"), gf, fmt={"fcst": FMT_MIL})
     ru = model["act"].assign(alvo=model["act"].alvo.map(yl))
-    escreve(wb.create_sheet("recebido_upi"), ru)
+    escreve(wb.create_sheet("recebido_upi"), ru, fmt={"recv": FMT_MIL})
     wb.save(caminho)
 
 
