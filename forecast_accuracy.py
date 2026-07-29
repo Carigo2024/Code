@@ -567,8 +567,89 @@ def exporta_excel(model, caminho):
         for j, c in enumerate(cols, 1):
             ws.column_dimensions[get_column_letter(j)].width = min(28, max(10, len(str(c)) + 3))
 
-    ws = wb.active; ws.title = "leia-me"
-    cfg = model["cfg"]
+    # ---- aba PAINEL (dashboard de uma pagina, abre primeiro) ----
+    from openpyxl.chart import BarChart, Reference
+    wsp = wb.active; wsp.title = "Painel"
+    wsp.sheet_view.showGridLines = False
+    v2 = model["views"][str(cfg.lag_honesto)]
+    agg = v2["agg"]; ov = v2["overview"]
+    caixa_logo(wsp)
+    wsp["E2"] = "Painel de Acuracidade  ·  Forecast de Importacao (UPI)"
+    wsp["E2"].font = Font(bold=True, size=15, color="A8410E")
+    wsp["E4"] = (f"Leitura honesta: lag {cfg.lag_honesto}   ·   janela {', '.join(v2['window'])}"
+                 f"   ·   {len(model['overlap'])} itens comparaveis")
+    wsp["E4"].font = Font(size=10, color="52514E")
+    # KPIs
+    for i, (lbl, val) in enumerate([("ACURACIA (volume)", agg["acuracia"]),
+                                    ("BIAS de volume", agg["bias"]),
+                                    ("WAPE acumulada", agg["wape_acum"]),
+                                    ("WAPE mes (com timing)", agg["wape_mes"])]):
+        col = 1 + i * 2
+        wsp.merge_cells(start_row=8, start_column=col, end_row=8, end_column=col + 1)
+        wsp.merge_cells(start_row=9, start_column=col, end_row=10, end_column=col + 1)
+        lc = wsp.cell(8, col, lbl); lc.font = Font(size=9, bold=True, color="8A8984")
+        lc.alignment = Alignment(horizontal="center")
+        vc = wsp.cell(9, col, val); vc.number_format = "0.0%"
+        vc.font = Font(bold=True, size=20, color="C2521A")
+        vc.alignment = Alignment(horizontal="center", vertical="center")
+        for rr in (8, 9, 10):
+            for cc in (col, col + 1):
+                wsp.cell(rr, cc).border = LOGO_BORDER
+    # tabela por lag
+    wsp.cell(12, 1, "Acuracidade por lag").font = TIT_FONT
+    for j, h in enumerate(["Lag", "Bias", "WAPE mes", "WAPE acum", "Acuracia"], 1):
+        c = wsp.cell(13, j, h); c.fill = HDR; c.font = HDR_FONT
+    rr = 14
+    for k in [str(i) for i in model["lags_incluidos"]] + ["cons"]:
+        a = model["views"][k]["agg"]
+        wsp.cell(rr, 1, "consolidado" if k == "cons" else "lag " + k)
+        for j, val in enumerate([a["bias"], a["wape_mes"], a["wape_acum"], a["acuracia"]], 2):
+            wsp.cell(rr, j, val).number_format = "0.0%"
+        if k == str(cfg.lag_honesto):
+            for j in range(1, 6):
+                wsp.cell(rr, j).fill = BAND
+        rr += 1
+    # grafico Previsto vs Recebido (dados em colunas ocultas N..P)
+    hc = 14
+    wsp.cell(1, hc, "mes"); wsp.cell(1, hc + 1, "Previsto"); wsp.cell(1, hc + 2, "Recebido")
+    for i, mes in enumerate(ov["meses"], 2):
+        wsp.cell(i, hc, mes); wsp.cell(i, hc + 1, ov["F"][i - 2]); wsp.cell(i, hc + 2, ov["A"][i - 2])
+    ch = BarChart(); ch.type = "col"; ch.title = "Previsto vs Recebido por mes (un.)"
+    ch.height = 7.5; ch.width = 15
+    data = Reference(wsp, min_col=hc + 1, max_col=hc + 2, min_row=1, max_row=1 + len(ov["meses"]))
+    cats = Reference(wsp, min_col=hc, max_col=hc, min_row=2, max_row=1 + len(ov["meses"]))
+    ch.add_data(data, titles_from_data=True); ch.set_categories(cats)
+    try:
+        ch.series[0].graphicalProperties.solidFill = "1B9E77"
+        ch.series[1].graphicalProperties.solidFill = "E2611C"
+    except Exception:
+        pass
+    wsp.add_chart(ch, "G12")
+    for c in range(hc, hc + 3):
+        wsp.column_dimensions[get_column_letter(c)].hidden = True
+    # maiores variacoes (top absolutas)
+    rk = v2["rankings"]
+
+    def _top(titulo, linhas, startrow):
+        wsp.cell(startrow, 1, titulo).font = TIT_FONT
+        for j, h in enumerate(["Item", "Descricao", "Erro (un)", "Bias"], 1):
+            c = wsp.cell(startrow + 1, j, h); c.fill = HDR; c.font = HDR_FONT
+        for i, r in enumerate(linhas[:6], startrow + 2):
+            dd = model["itemdim"].get(r["item"], {})
+            wsp.cell(i, 1, r["item"])
+            wsp.cell(i, 2, (dd.get("desc") or "")[:26])
+            wsp.cell(i, 3, r["erro_abs_un"]).number_format = "#,##0"
+            wsp.cell(i, 4, r["bias"]).number_format = "0.0%"
+
+    _top("Maiores subprevisoes (recebeu mais)", rk["abs_under"], rr + 1)
+    _top("Maiores superprevisoes (previu mais)", rk["abs_over"], rr + 11)
+    wsp.column_dimensions["A"].width = 13
+    wsp.column_dimensions["B"].width = 28
+    for cl in "CDEFGHIJ":
+        wsp.column_dimensions[cl].width = 12
+
+    # ---- aba leia-me ----
+    ws = wb.create_sheet("leia-me")
     logo_start = caixa_logo(ws)
     notas = [
         "ACURACIDADE DO FORECAST DE IMPORTACAO (UPI)",
