@@ -77,37 +77,7 @@ def build_payload(model):
     closed_max = model["closed_max"]
     tmax = closed_max + 3  # matriz mostra horizonte proximo
 
-    # ---- visao geral: series mensais (meses fechados) ----
-    meses = model["meses_fechados"]
-    A_m = act_o.groupby("alvo").recv.sum()
-    Fl = sel_lag(fc_o, cfg.lag_honesto).groupby("alvo").F.sum()
-    Fc = sel_consolidado(fc_o).groupby("alvo").F.sum()
-    overview = dict(
-        meses=[yl(t) for t in meses],
-        A=[round(float(A_m.get(t, 0)), 1) for t in meses],
-        F_lag=[None if t not in Fl.index else round(float(Fl.get(t)), 1) for t in meses],
-        F_cons=[round(float(Fc.get(t, 0)), 1) for t in meses],
-    )
-    # erro % mensal (consolidado) para sparkline/tendencia
-    err = [((A_m.get(t, 0) - Fc.get(t, 0)) / Fc.get(t, 1) * 100) if Fc.get(t, 0) else None
-           for t in meses]
-    overview["err_pct"] = [None if e is None else round(e, 1) for e in err]
-    # tendencia conservadora: media |erro%| da 1a metade vs 2a metade dos meses
-    vals = [abs(e) for e in err if e is not None]
-    if len(vals) >= 4:
-        h = len(vals) // 2
-        m1, m2 = float(np.mean(vals[:h])), float(np.mean(vals[h:]))
-        if m2 < m1 * 0.8:
-            overview["tendencia"] = "melhorando"
-        elif m2 > m1 * 1.2:
-            overview["tendencia"] = "piorando"
-        else:
-            overview["tendencia"] = "estavel"
-    else:
-        overview["tendencia"] = "n/d"
-    overview["tendencia_n"] = len(vals)
-
-    # ---- detalhe por item ----
+    # ---- detalhe por item (independente de lag) ----
     detalhe = {}
     for it in model["overlap"]:
         fi = fc_o[fc_o.item == it]
@@ -117,27 +87,32 @@ def build_payload(model):
             lag_acc=_lag_accuracy_item(fi, ai, closed_max),
         )
 
+    # ---- lista de lags para o seletor global ----
+    def _label(L):
+        if L == cfg.lag_honesto:
+            return f"Lag {L} · honesto (decisao de compra)"
+        if L == 0:
+            return "Lag 0 · mesmo mes"
+        return f"Lag {L}"
+    lags = [dict(key=str(L), label=_label(L)) for L in model["lags_incluidos"]]
+    lags.append(dict(key="cons", label="Consolidado · ultima safra (otimista)"))
+    default = str(cfg.lag_honesto) if str(cfg.lag_honesto) in model["views"] else lags[0]["key"]
+
     payload = dict(
         meta=dict(escopo=cfg.fornecedor, lag=cfg.lag_honesto, offset=cfg.offset_defasagem,
                   logo=_logo_datauri(cfg),
                   mes_parcial=cfg.mes_corrente_parcial, n_itens=len(model["overlap"]),
                   win_lag=[yl(t) for t in model["win_lag"]],
                   win_full=[yl(t) for t in model["win_full"]],
+                  lags=lags, lag_default=default,
                   limiares=dict(controle_acum=cfg.t_controle_acum, controle_mes=cfg.t_controle_mes,
                                 bias=cfg.t_bias, timing_acum=cfg.t_timing_acum,
                                 timing_mes=cfg.t_timing_mes)),
-        agg=model["agg"],
+        views=model["views"],
+        itemdim=model["itemdim"],
         sensibilidade=model["sensibilidade"],
         cobertura=model["cobertura"],
-        overview=overview,
-        mestre=model["mestre"].where(pd.notnull(model["mestre"]), None).to_dict("records"),
-        series=model["series"],
         detalhe=detalhe,
-        rankings={k: v.where(pd.notnull(v), None).assign(
-                     erro_abs_un=(v.A - v.F_lag).abs().round(0)
-                  )[["item", "desc", "familia", "abc", "F_lag", "A", "bias",
-                     "wape_acum", "erro_abs_un"]].to_dict("records")
-                  for k, v in model["rankings"].items()},
         orfaos=dict(
             previsto_nao_recebido=model["orfaos"]["previsto_nao_recebido"][:300],
             recebido_sem_previsao=model["orfaos"]["recebido_sem_previsao"][:300],

@@ -393,6 +393,69 @@ def build_model(cfg: Config):
     top_pct_over = ab[ab.bias < 0].nsmallest(15, "bias")
     top_pct_under = ab[ab.bias > 0].nlargest(15, "bias")
 
+    # ---- views por lag (para o seletor interativo do dashboard) ----
+    itemdim = {r["item"]: dict(desc=r["desc"], familia=r["familia"], marca=r["marca"],
+                               um=r["um"], abc=r["abc"], status=r["status"],
+                               churn=r["churn"], vol_recv=r["vol_recv"])
+               for r in mestre.to_dict("records")}
+    abc_map = dict(zip(mestre.item, mestre.abc))
+
+    def _rankings_view(recs):
+        df = pd.DataFrame([r for r in recs if r["A"] and r["A"] > 0])
+        if df.empty:
+            return dict(abs_over=[], abs_under=[], pct_over=[], pct_under=[])
+        df["abc"] = df.item.map(lambda i: abc_map.get(i, "C"))
+        df["erro_abs_un"] = (df.A - df.F_lag).abs()
+        cols = ["item", "abc", "F_lag", "A", "bias", "wape_acum", "erro_abs_un"]
+        rl = lambda d: d[cols].to_dict("records")
+        ab = df[df.abc.isin(["A", "B"]) & df.bias.notna()]
+        return dict(
+            abs_over=rl(df[df.F_lag > df.A].nlargest(15, "erro_abs_un")),
+            abs_under=rl(df[df.A > df.F_lag].nlargest(15, "erro_abs_un")),
+            pct_over=rl(ab[ab.bias < 0].nsmallest(15, "bias")),
+            pct_under=rl(ab[ab.bias > 0].nlargest(15, "bias")))
+
+    def _view(sel, win):
+        m = malha(sel, act_o, win)
+        recs = []
+        for it, g in m.groupby("item"):
+            g = g.sort_values("alvo")
+            A, F = g.A.sum(), g.F.sum()
+            if A <= 0 and F <= 0:
+                continue
+            bias = (A - F) / F if F > 0 else np.nan
+            wm = wape(g); wc = abs(A - F) / A if A > 0 else np.nan
+            classe = classifica(bias, wm, wc, cfg, F > 0)
+            recs.append(dict(
+                item=it, F_lag=float(F), A=float(A),
+                bias=None if np.isnan(bias) else round(bias, 4),
+                wape_mes=None if np.isnan(wm) else round(wm, 4),
+                wape_acum=None if np.isnan(wc) else round(wc, 4),
+                acuracia=None if np.isnan(wc) else round(1 - wc, 4),
+                tracking_signal=round(tracking_signal(g.e.values), 2),
+                n_meses=int((g.A > 0).sum()),
+                classe=classe, classe_label=CLASSE_LABEL[classe], acao=ACAO[classe]))
+        A_m = act_o[act_o.alvo.isin(win)].groupby("alvo").recv.sum()
+        F_m = sel[sel.alvo.isin(win)].groupby("alvo").F.sum()
+        meses = sorted(win)
+        ov = dict(meses=[yl(t) for t in meses],
+                  F=[round(float(F_m.get(t, 0)), 1) for t in meses],
+                  A=[round(float(A_m.get(t, 0)), 1) for t in meses])
+        ov["err"] = [None if not ov["F"][i] else round((ov["A"][i] - ov["F"][i]) / ov["F"][i] * 100, 1)
+                     for i in range(len(meses))]
+        return dict(agg=metricas_agregadas(m), metrics=recs, overview=ov,
+                    rankings=_rankings_view(recs), window=[yl(t) for t in meses])
+
+    views, lags_incluidos = {}, []
+    for L in range(0, 6):
+        sel = sel_lag(fc_o, L)
+        w = sorted(t for t in set(sel.alvo) & set(act_o.alvo) if t <= closed_max)
+        if len(w) < 2:
+            continue
+        views[str(L)] = _view(sel, w)
+        lags_incluidos.append(L)
+    views["cons"] = _view(sel_consolidado(fc_o), win_full)
+
     # ---- orfaos ----
     prev_nao_receb = sorted(set(fc[fc.fcst > 0].item) - set(act.item))
     receb_sem_prev = sorted(set(act.item) - set(fc[fc.fcst > 0].item))
@@ -403,6 +466,7 @@ def build_model(cfg: Config):
         win_lag=win_lag, win_full=win_full, closed_max=closed_max,
         agg=agg, sensibilidade=sens, cobertura=cobertura,
         mestre=mestre, series=series,
+        views=views, itemdim=itemdim, lags_incluidos=lags_incluidos,
         rankings=dict(abs_over=top_abs_over, abs_under=top_abs_under,
                       pct_over=top_pct_over, pct_under=top_pct_under),
         orfaos=dict(previsto_nao_recebido=prev_nao_receb, recebido_sem_previsao=receb_sem_prev),

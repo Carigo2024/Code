@@ -29,6 +29,11 @@ O passo manual é só soltar o arquivo na pasta; o resto é automático (~7 s).
 > **Logo:** se existir um `data/logo.png`, ele entra automaticamente nas abas de
 > apresentação do Excel e no cabeçalho do dashboard HTML a cada geração.
 
+> **Seletor de Lag (dashboard):** no topo do dashboard há o controle *Leitura (lag)*
+> — Lag 0 (mesmo mês) até Lag 4, mais Consolidado. Ele reprocessa visão geral,
+> rankings, tabela mestre, ficha do item e exceções na hora. Lag 2 é a leitura
+> honesta (padrão); Lag 0 é diagnóstico; Consolidado é gerencial (otimista).
+
 ---
 
 ## 2. Arquivos do projeto
