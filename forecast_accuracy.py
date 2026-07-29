@@ -483,7 +483,18 @@ def exporta_csv(model, outdir):
         .to_csv(os.path.join(outdir, "grao_forecast.csv"), index=False)
     model["act"].assign(alvo=model["act"].alvo.map(yl)) \
         .to_csv(os.path.join(outdir, "recebido_upi.csv"), index=False)
-    model["mestre"].to_csv(os.path.join(outdir, "mestre_itens.csv"), index=False)
+    model["mestre"].drop(columns=[c for c in ["cum_pct"] if c in model["mestre"].columns]) \
+        .to_csv(os.path.join(outdir, "mestre_itens.csv"), index=False)
+    # metricas por item x lag (tidy) - ideal para Tabela Dinamica + segmentacao de 'lag'
+    plag = []
+    for k, v in model["views"].items():
+        lagname = "consolidado" if k == "cons" else f"lag {k}"
+        for m in v["metrics"]:
+            plag.append(dict(lag=lagname, item=m["item"], previsto=m["F_lag"], recebido=m["A"],
+                             bias=m["bias"], wape_mes=m["wape_mes"], wape_acum=m["wape_acum"],
+                             acuracia=m["acuracia"], tracking_signal=m["tracking_signal"],
+                             classe=m["classe_label"]))
+    pd.DataFrame(plag).to_csv(os.path.join(outdir, "metricas_por_lag.csv"), index=False)
 
 
 def exporta_excel(model, caminho):
