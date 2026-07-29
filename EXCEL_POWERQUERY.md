@@ -35,40 +35,53 @@ Cole em **Nova Consulta → Consulta Nula → Editor Avançado**. Trata os defei
 safra pelo nome do arquivo, coluna corrompida do Order_06 → Mai/27, coluna
 Fev/27 duplicada do Order_03 descartada.
 
+> Aceita nomes com **espaço ou underscore** (`Order 01 2026.xlsx` ou
+> `Order_01_2026.xlsx`), ignora arquivos temporários `~$` e pega a data do
+> **valor** do cabeçalho (não converte texto) — robusto à cultura pt-BR.
+
 ```m
 let
     Arquivos = Folder.Files(Pasta),
     Orders = Table.SelectRows(Arquivos, each
-        Text.StartsWith([Name], "Order_") and Text.EndsWith([Name], ".xlsx")),
+        Text.StartsWith([Name], "Order")
+        and Text.EndsWith(Text.Lower([Name]), ".xlsx")
+        and not Text.StartsWith([Name], "~")),
 
-    // safra = numero do arquivo: Order_NN_2026.xlsx -> 2026-NN-01
+    // safra = numero do mes no nome (entre "Order" e "2026"), so os digitos
     ComSafra = Table.AddColumn(Orders, "Safra", each
-        #date(2026, Number.FromText(Text.Middle([Name], 6, 2)), 1), type date),
+        try #date(2026,
+            Number.FromText(Text.Select(Text.BetweenDelimiters([Name], "Order", "2026"), {"0".."9"})),
+            1) otherwise null, type date),
+    SoValidos = Table.SelectRows(ComSafra, each [Safra] <> null),
 
-    // transforma cada arquivo em tabela tidy (Item, Alvo, Fcst)
-    Tidy = Table.AddColumn(ComSafra, "T", each
+    Tidy = Table.AddColumn(SoValidos, "T", each
         let
-            wb    = Excel.Workbook([Content], null, true),
-            sheet = wb{[Item="FORECAST", Kind="Sheet"]}[Data],
-            semTitulo = Table.Skip(sheet, 1),                 // tira a linha de titulo
-            prom  = Table.PromoteHeaders(semTitulo, [PromoteAllScalars=true]),
-            fixos = {"COMPONENT UDB", "COMPONENT UPI", "DESCRIPTION", "UM"},
-            unpiv = Table.UnpivotOtherColumns(prom, fixos, "AlvoTxt", "Fcst"),
+            aba = Table.SelectRows(Excel.Workbook([Content], null, true),
+                    each [Name]="FORECAST" and [Kind]="Sheet"){0}[Data],
+            semTitulo  = Table.Skip(aba, 1),                 // tira a linha de titulo
+            colNames   = Table.ColumnNames(semTitulo),
+            headerVals = Record.FieldValues(semTitulo{0}),   // linha de cabecalho (datas reais)
+            mapaData   = Record.FromList(headerVals, colNames),
+            dados = Table.Skip(semTitulo, 1),                // linhas de item
+            ren = Table.RenameColumns(dados,
+                    {{colNames{0},"ItemUDB"},{colNames{2},"Desc"},{colNames{3},"UM"}}, MissingField.Ignore),
+            semUPI = Table.RemoveColumns(ren, {colNames{1}}, MissingField.Ignore),
+            unpiv = Table.UnpivotOtherColumns(semUPI, {"ItemUDB","Desc","UM"}, "ColMes", "Fcst"),
             comAlvo = Table.AddColumn(unpiv, "Alvo", each
-                if Text.Contains([AlvoTxt], "20267") then #date(2027,5,1)  // Order_06 corrompido
-                else try Date.From([AlvoTxt]) otherwise null, type date),
-            // Alvo = null descarta a coluna Fev/27 DUPLICADA do Order_03 e lixo
-            ok = Table.SelectRows(comAlvo, each [Alvo] <> null and [Fcst] <> null)
+                let v = Record.Field(mapaData, [ColMes]) in
+                if v is datetime or v is date then Date.From(v)
+                else if Text.Contains(Text.From(v), "20267") then #date(2027,5,1)  // Order_06 corrompido
+                else try Date.From(v) otherwise null, type date),
+            ok = Table.SelectRows(comAlvo, each [Alvo]<>null and [Fcst]<>null and [ItemUDB]<>null)
         in
-            Table.SelectColumns(ok, {"COMPONENT UDB", "DESCRIPTION", "UM", "Alvo", "Fcst"})),
+            Table.SelectColumns(ok, {"ItemUDB","Desc","UM","Alvo","Fcst"})),
 
     Expand = Table.ExpandTableColumn(
-        Table.SelectColumns(Tidy, {"Safra", "T"}), "T",
-        {"COMPONENT UDB", "DESCRIPTION", "UM", "Alvo", "Fcst"}),
+        Table.SelectColumns(Tidy, {"Safra","T"}), "T",
+        {"ItemUDB","Desc","UM","Alvo","Fcst"}),
 
-    // normaliza o item (tira -BR e traco final) e calcula o lag em meses
     Norm = Table.AddColumn(Expand, "Item", each
-        let s = Text.Upper(Text.Trim(Text.From([#"COMPONENT UDB"]))),
+        let s = Text.Upper(Text.Trim(Text.From([ItemUDB]))),
             a = if Text.EndsWith(s, "-BR") then Text.Start(s, Text.Length(s)-3) else s,
             b = if Text.EndsWith(a, "-")   then Text.Start(a, Text.Length(a)-1) else a
         in b, type text),
@@ -76,7 +89,7 @@ let
         (Date.Year([Alvo])*12 + Date.Month([Alvo]))
         - (Date.Year([Safra])*12 + Date.Month([Safra])), Int64.Type),
 
-    Final = Table.SelectColumns(Lag, {"Item", "Alvo", "Safra", "Lag", "Fcst"}),
+    Final = Table.SelectColumns(Lag, {"Item","Alvo","Safra","Lag","Fcst"}),
     Tipos = Table.TransformColumnTypes(Final,
         {{"Fcst", type number}, {"Alvo", type date}, {"Safra", type date}})
 in
@@ -90,7 +103,7 @@ in
 ```m
 let
     Arq = Table.SelectRows(Folder.Files(Pasta), each
-        Text.StartsWith([Name], "Received")),
+        Text.StartsWith([Name], "Received") and not Text.StartsWith([Name], "~")),
     Conteudo = Arq{0}[Content],
     wb   = Excel.Workbook(Conteudo, null, true),
     exp  = wb{[Item="Export", Kind="Sheet"]}[Data],
@@ -122,7 +135,7 @@ Crie também `DimItem` (dimensão do item) a partir do recebido:
 
 ```m
 let
-    src = Table.SelectRows(Folder.Files(Pasta), each Text.StartsWith([Name],"Received")){0}[Content],
+    src = Table.SelectRows(Folder.Files(Pasta), each Text.StartsWith([Name],"Received") and not Text.StartsWith([Name],"~")){0}[Content],
     exp = Table.PromoteHeaders(Excel.Workbook(src, null, true){[Item="Export",Kind="Sheet"]}[Data], [PromoteAllScalars=true]),
     upi = Table.SelectRows(exp, each Text.Trim(Text.From([Supplier]))="UPI"),
     norm = Table.TransformColumns(upi, {{"Item", each

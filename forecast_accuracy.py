@@ -96,18 +96,43 @@ def parse_header_month(h):
 # --------------------------------------------------------------------------- #
 # Ingestao
 # --------------------------------------------------------------------------- #
+def _mes_do_order(base):
+    """Mes (1-12) de um nome 'Order 01 2026.xlsx' ou 'Order_01_2026.xlsx'; senao None."""
+    if base.startswith("~"):
+        return None
+    m = re.search(r"Order[ _\-]*(\d{1,2})", base, re.IGNORECASE)
+    if not m:
+        return None
+    n = int(m.group(1))
+    return n if 1 <= n <= 12 else None
+
+
+def _lista_orders(data_dir):
+    """Arquivos Order (aceita espaco ou underscore no nome), ordenados por mes."""
+    out = []
+    for c in glob.glob(os.path.join(data_dir, "Order*.xlsx")):
+        n = _mes_do_order(os.path.basename(c))
+        if n:
+            out.append((c, n))
+    return sorted(out, key=lambda t: t[1])
+
+
+def _arquivo_recebido(data_dir):
+    achados = [c for c in sorted(glob.glob(os.path.join(data_dir, "Received*.xlsx")))
+               if not os.path.basename(c).startswith("~")]
+    if not achados:
+        raise FileNotFoundError(f"arquivo Received*.xlsx nao encontrado em {data_dir}")
+    return achados[0]
+
+
 def le_forecasts(cfg: Config):
     """Grao tidy do forecast: item, alvo, safra, lag, fcst, descricao, um."""
     import openpyxl
 
     recs = []
     desc_map, um_map = {}, {}
-    arquivos = sorted(glob.glob(os.path.join(cfg.data_dir, "Order_*_2026.xlsx")))
-    for caminho in arquivos:
-        m = re.search(r"Order_(\d{2})_2026\.xlsx$", os.path.basename(caminho))
-        if not m:
-            continue
-        safra = mk(2026, int(m.group(1)))
+    for caminho, _n in _lista_orders(cfg.data_dir):
+        safra = mk(2026, _n)
         wb = openpyxl.load_workbook(caminho, read_only=True, data_only=True)
         ws = wb["FORECAST"]
         linhas = list(ws.iter_rows(min_row=2, values_only=True))
@@ -140,7 +165,7 @@ def le_recebido(cfg: Config):
     """Recebido UPI agregado por item x mes de entrada; e dimensoes do item."""
     import openpyxl
 
-    caminho = sorted(glob.glob(os.path.join(cfg.data_dir, "Received*_2026.xlsx")))[0]
+    caminho = _arquivo_recebido(cfg.data_dir)
     wb = openpyxl.load_workbook(caminho, read_only=True, data_only=True)
     linhas = list(wb["Export"].iter_rows(min_row=2, values_only=True))
     wb.close()
@@ -750,7 +775,7 @@ def reconcilia(model):
     cfg = model["cfg"]
     # ---- forecast: soma crua de TODAS as celulas de mes menos a col duplicada ----
     raw_all = dup = 0.0
-    for caminho in sorted(glob.glob(os.path.join(cfg.data_dir, "Order_*_2026.xlsx"))):
+    for caminho, _n in _lista_orders(cfg.data_dir):
         wb = openpyxl.load_workbook(caminho, read_only=True, data_only=True)
         linhas = list(wb["FORECAST"].iter_rows(min_row=2, values_only=True))
         wb.close()
