@@ -423,24 +423,53 @@ def exporta_csv(model, outdir):
 
 def exporta_excel(model, caminho):
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
     wb = Workbook()
-    azul = PatternFill("solid", fgColor="2A78D6")
-    hdrfont = Font(bold=True, color="FFFFFF")
+    # --- paleta laranja ---
+    HDR = PatternFill("solid", fgColor="D9601C")     # cabecalho
+    HDR_FONT = Font(bold=True, color="FFFFFF")
+    TIT_FONT = Font(bold=True, size=12, color="A8410E")
+    BAND = PatternFill("solid", fgColor="FDF3EC")     # faixa zebrada
+    LOGO_FILL = PatternFill("solid", fgColor="FCE7DA")
+    LOGO_FONT = Font(bold=True, color="B5673C", size=11)
+    ord_side = Side(style="thin", color="E2611C")
+    LOGO_BORDER = Border(left=ord_side, right=ord_side, top=ord_side, bottom=ord_side)
 
-    def escreve(ws, df, titulo=None):
-        r0 = 1
+    def caixa_logo(ws):
+        """Reserva um espaco no canto superior esquerdo para o logo da empresa."""
+        ws.merge_cells("A1:C6")
+        c = ws["A1"]
+        c.value = "LOGO DA EMPRESA\n(inserir aqui)"
+        c.fill = LOGO_FILL
+        c.font = LOGO_FONT
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for row in ws["A1:C6"]:
+            for cell in row:
+                cell.border = LOGO_BORDER
+                if cell.fill.fgColor.rgb in (None, "00000000"):
+                    cell.fill = LOGO_FILL
+        for r in range(1, 7):
+            ws.row_dimensions[r].height = 17
+        return 8  # conteudo comeca aqui
+
+    def escreve(ws, df, titulo=None, logo=False, banding=False):
+        start = caixa_logo(ws) if logo else 1
+        r0 = start
         if titulo:
-            ws.cell(1, 1, titulo).font = Font(bold=True, size=12)
-            r0 = 3
+            ws.cell(r0, 1, titulo).font = TIT_FONT
+            r0 = start + 2
         for j, c in enumerate(df.columns, 1):
             cell = ws.cell(r0, j, c)
-            cell.fill = azul; cell.font = hdrfont
+            cell.fill = HDR; cell.font = HDR_FONT
+            cell.alignment = Alignment(vertical="center")
         for i, row in enumerate(df.itertuples(index=False), r0 + 1):
+            zebra = banding and (i - r0) % 2 == 0
             for j, v in enumerate(row, 1):
-                ws.cell(i, j, v)
+                cell = ws.cell(i, j, v)
+                if zebra:
+                    cell.fill = BAND
         ws.freeze_panes = ws.cell(r0 + 1, 1)
         ws.auto_filter.ref = f"A{r0}:{get_column_letter(len(df.columns))}{r0+len(df)}"
         for j, c in enumerate(df.columns, 1):
@@ -448,6 +477,7 @@ def exporta_excel(model, caminho):
 
     ws = wb.active; ws.title = "leia-me"
     cfg = model["cfg"]
+    logo_start = caixa_logo(ws)
     notas = [
         "ACURACIDADE DO FORECAST DE IMPORTACAO (UPI)",
         "",
@@ -465,14 +495,18 @@ def exporta_excel(model, caminho):
         "mestre_itens e a tabela mestre de metricas por item; cobertura e a grade lag x mes.",
         "Para Power Pivot: Dados > Obter Dados > Deste Arquivo, e relacione por 'item'/'alvo'.",
     ]
-    for i, t in enumerate(notas, 1):
-        ws.cell(i, 1, t)
-    ws.column_dimensions["A"].width = 90
+    for i, t in enumerate(notas, logo_start):
+        cell = ws.cell(i, 1, t)
+        if i == logo_start:
+            cell.font = TIT_FONT
+    ws.column_dimensions["A"].width = 95
 
-    escreve(wb.create_sheet("mestre_itens"), model["mestre"], "Tabela mestre de itens")
+    escreve(wb.create_sheet("mestre_itens"), model["mestre"],
+            "Tabela mestre de itens", logo=True, banding=True)
     cob = pd.DataFrame([{"alvo": c["alvo"], "lags": str(c["lags"]),
                          "tem_realizado": c["tem_realizado"]} for c in model["cobertura"]])
-    escreve(wb.create_sheet("cobertura"), cob, "Grade de cobertura (mes x lag)")
+    escreve(wb.create_sheet("cobertura"), cob,
+            "Grade de cobertura (mes x lag)", logo=True, banding=True)
     gf = model["fc"].assign(alvo=model["fc"].alvo.map(yl), safra=model["fc"].safra.map(yl))
     escreve(wb.create_sheet("grao_forecast"), gf)
     ru = model["act"].assign(alvo=model["act"].alvo.map(yl))
