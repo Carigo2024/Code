@@ -6,9 +6,9 @@
 <title>Acuracidade do Forecast de Importacao (UPI)</title>
 <style>
   :root{
-    --f:#2a78d6; --a:#eb6834; --over:#e34948; --under:#2a78d6;
+    --brand:#d9601c; --f:#1b9e77; --a:#e2611c; --over:#e34948; --under:#5a6b7a;
     --ink:#0b0b0b; --ink2:#52514e; --muted:#8a8984; --line:#e7e6e2;
-    --surface:#ffffff; --panel:#faf9f7; --chip:#eef1f5;
+    --surface:#ffffff; --panel:#fbf7f3; --chip:#f3ebe4;
     --good:#1baf7a; --warn:#eda100;
   }
   *{box-sizing:border-box}
@@ -21,7 +21,7 @@
   nav{width:210px;background:var(--surface);border-right:1px solid var(--line);padding:10px 0;flex-shrink:0}
   nav a{display:block;padding:10px 20px;color:var(--ink2);cursor:pointer;font-weight:600;border-left:3px solid transparent}
   nav a:hover{background:var(--panel)}
-  nav a.active{color:var(--f);border-left-color:var(--f);background:var(--panel)}
+  nav a.active{color:var(--brand);border-left-color:var(--brand);background:var(--panel)}
   main{flex:1;padding:20px 26px;max-width:1180px}
   h2{font-size:16px;margin:0 0 4px}
   .sub{color:var(--ink2);font-size:12.5px;margin-bottom:16px}
@@ -43,17 +43,17 @@
   .chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;background:var(--chip);color:var(--ink2)}
   .b-abcA{background:#d8ebe0;color:#0f7a52}.b-abcB{background:#fdf0d0;color:#8a6400}.b-abcC{background:#eee;color:#666}
   .cl{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
-  .cl-vies_sub{background:#e34948}.cl-vies_super{background:#eda100}.cl-timing{background:#2a78d6}
+  .cl-vies_sub{background:#e34948}.cl-vies_super{background:#eda100}.cl-timing{background:#5a6b7a}
   .cl-erratico{background:#7a4fb0}.cl-sob_controle{background:#1baf7a}.cl-nao_previsto{background:#8a8984}
   .filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 12px}
   select,input,button{font:inherit;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff}
-  button{cursor:pointer;background:var(--f);color:#fff;border-color:var(--f);font-weight:600}
+  button{cursor:pointer;background:var(--brand);color:#fff;border-color:var(--brand);font-weight:600}
   button.ghost{background:#fff;color:var(--ink2)}
   .legend{display:flex;gap:16px;font-size:12px;color:var(--ink2);margin:4px 0 8px}
   .legend b{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:middle}
   .matrix td,.matrix th{text-align:center;font-size:11.5px;padding:5px 7px}
   .matrix .realizado{font-weight:700}
-  .note{font-size:12px;color:var(--ink2);background:var(--panel);border-left:3px solid var(--f);padding:9px 12px;border-radius:0 8px 8px 0;margin:10px 0}
+  .note{font-size:12px;color:var(--ink2);background:var(--panel);border-left:3px solid var(--brand);padding:9px 12px;border-radius:0 8px 8px 0;margin:10px 0}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:900px){.grid2{grid-template-columns:1fr}nav{width:150px}}
   .arrow{font-size:20px;font-weight:700}
@@ -89,7 +89,7 @@ const fmt=n=>n==null?'–':Math.round(n).toLocaleString('pt-BR');
 const fmtK=n=>{n=n||0;const a=Math.abs(n);return a>=1e6?(n/1e6).toFixed(1).replace('.',',')+'M':a>=1e3?(n/1e3).toFixed(0)+'k':Math.round(n).toString();};
 const pct=n=>n==null?'–':(n*100).toFixed(1)+'%';
 const pctS=n=>n==null?'–':(n*100>=0?'+':'')+(n*100).toFixed(1)+'%';
-const CF='#2a78d6',CA='#eb6834',COVER='#e34948',CUND='#2a78d6';
+const CF='#1b9e77',CA='#e2611c',COVER='#e34948',CUND='#5a6b7a',BRAND='#d9601c';
 // grouped bar SVG
 function barGroup(labels,series,{h=220,fmtY=fmtK,labelErr=null}={}){
   const w=Math.max(360,labels.length*80), pad=48, iw=w-pad-14, ih=h-30;
@@ -205,19 +205,19 @@ TABS.forEach(([id,lb],i)=>{const a=el('a',{class:i===0?'active':''},lb);a.onclic
     mt.append(el('tr',{},el('th',{class:'l'},'Safra ╲ Alvo'),...ser.targets.map(t=>el('th',{},t))));
     const allv=ser.matrix.flat().filter(x=>x!=null);const vmax=Math.max(1,...allv);
     ser.vintages.forEach((v,vi)=>{const tr=el('tr',{},el('th',{class:'l'},v));
-      ser.matrix[vi].forEach(val=>{const bg=val==null?'#fff':`rgba(42,120,214,${0.08+0.5*val/vmax})`;
+      ser.matrix[vi].forEach(val=>{const bg=val==null?'#fff':`rgba(27,158,119,${0.08+0.5*val/vmax})`;
         tr.append(el('td',{style:`background:${bg}`},val==null?'':fmt(val)));});
       mt.append(tr);});
     const trR=el('tr',{class:'realizado'},el('th',{class:'l'},'Realizado'));
     real.forEach(val=>trR.append(el('td',{style:'background:#fdece4'},val==null?'':fmt(val))));
     mt.append(trR);
     box.append(el('div',{class:'panel'},el('h3',{},'Matriz Safra × Mês-alvo (previsto) + Realizado'),
-      el('div',{class:'small'},'Cada linha é uma safra; a intensidade do azul é o volume previsto. A última linha (laranja) é o recebido — dá para ver se o erro foi de volume ou de timing.'),
+      el('div',{class:'small'},'Cada linha é uma safra; a intensidade da cor (teal) é o volume previsto. A última linha (laranja) é o recebido — dá para ver se o erro foi de volume ou de timing.'),
       el('div',{class:'scroll'},mt)));
     // acuracia por lag do item
     if(d.lag_acc.length){const rows=d.lag_acc.map(x=>({label:'lag '+x.lag,v:x.wape_acum==null?0:x.wape_acum*100}));
       box.append(el('div',{class:'panel'},el('h3',{},'Acurácia por lag deste item (WAPE acum %)'),
-        el('div',{html:hbars(rows,{fmtV:v=>v.toFixed(0)+'%',color:r=>r.v>40?COVER:CF})})));}
+        el('div',{html:hbars(rows,{fmtV:v=>v.toFixed(0)+'%',color:r=>r.v>40?COVER:BRAND})})));}
   }
   sel.onchange=()=>render(sel.value);render(sorted[0].item);
 })();
@@ -270,10 +270,10 @@ TABS.forEach(([id,lb],i)=>{const a=el('a',{class:i===0?'active':''},lb);a.onclic
   s.append(el('h2',{},'Acurácia por lag (horizonte)'),el('div',{class:'sub'},'A partir de qual antecedência a previsão é confiável — cada lag na sua janela de meses fechados.'));
   const S=DATA.sensibilidade;
   s.append(el('div',{class:'panel'},el('h3',{},'WAPE por lag'),
-    el('div',{class:'legend',html:`<span><b style="background:#c9c8c3"></b>WAPE mês</span><span><b style="background:${CF}"></b>WAPE acum (volume)</span>`}),
+    el('div',{class:'legend',html:`<span><b style="background:#c9c8c3"></b>WAPE mês</span><span><b style="background:${BRAND}"></b>WAPE acum (volume)</span>`}),
     el('div',{html:barGroup(S.map(x=>'lag '+x.lag),
       [{name:'mes',color:'#c9c8c3',values:S.map(x=>x.wape_mes*100)},
-       {name:'acum',color:CF,values:S.map(x=>x.wape_acum*100)}],{fmtY:v=>v.toFixed(0)+'%'})})));
+       {name:'acum',color:BRAND,values:S.map(x=>x.wape_acum*100)}],{fmtY:v=>v.toFixed(0)+'%'})})));
   const t=el('table');t.append(el('tr',{},...['Lag','Janela','Bias','WAPE mês','WAPE acum'].map((h,i)=>el('th',{class:i===1?'l':''},h))));
   S.forEach(x=>t.append(el('tr',{},el('td',{class:'l'},'lag '+x.lag),el('td',{class:'l small'},x.janela.join(', ')),
     el('td',{},pctS(x.bias)),el('td',{},pct(x.wape_mes)),el('td',{},pct(x.wape_acum)))));
@@ -287,7 +287,7 @@ TABS.forEach(([id,lb],i)=>{const a=el('a',{class:i===0?'active':''},lb);a.onclic
   const mean=DATA.mestre.reduce((a,r)=>a+(r.churn||0),0)/DATA.mestre.length;
   s.append(el('div',{class:'cards'},el('div',{class:'card'},el('div',{class:'lbl'},'Churn médio'),el('div',{class:'val'},pct(mean)))));
   s.append(el('div',{class:'panel'},el('h3',{},'Top 20 itens por churn'),
-    el('div',{html:hbars(top.map(r=>({label:r.item+' '+(r.desc||'').slice(0,16),v:r.churn*100})),{fmtV:v=>v.toFixed(0)+'%',color:r=>r.v>60?COVER:CF})})));
+    el('div',{html:hbars(top.map(r=>({label:r.item+' '+(r.desc||'').slice(0,16),v:r.churn*100})),{fmtV:v=>v.toFixed(0)+'%',color:r=>r.v>60?COVER:BRAND})})));
 })();
 
 // ---------- EXCECOES ----------
