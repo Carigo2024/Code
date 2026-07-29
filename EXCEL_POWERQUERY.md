@@ -69,7 +69,8 @@ let
             unpiv = Table.UnpivotOtherColumns(semUPI, {"ItemUDB","Desc","UM"}, "ColMes", "Fcst"),
             comAlvo = Table.AddColumn(unpiv, "Alvo", each
                 let v = Record.Field(mapaData, [ColMes]) in
-                if v is datetime or v is date then Date.From(v)
+                if v = null then null                                   // coluna de cabecalho vazia
+                else if v is datetime or v is date then Date.From(v)
                 else if Text.Contains(Text.From(v), "20267") then #date(2027,5,1)  // Order_06 corrompido
                 else try Date.From(v) otherwise null, type date),
             ok = Table.SelectRows(comAlvo, each [Alvo]<>null and [Fcst]<>null and [ItemUDB]<>null)
