@@ -52,6 +52,7 @@ class Config:
     t_timing_mes: float = 0.35
     abc_a: float = 0.80               # corte curva A (% acumulado do volume)
     abc_b: float = 0.95               # corte curva B
+    logo_path: str = "data/logo.png"  # logo da empresa (se existir, entra nas abas)
 
 
 # --------------------------------------------------------------------------- #
@@ -427,6 +428,7 @@ def exporta_excel(model, caminho):
     from openpyxl.utils import get_column_letter
 
     wb = Workbook()
+    cfg = model["cfg"]
     # --- paleta laranja ---
     HDR = PatternFill("solid", fgColor="D9601C")     # cabecalho
     HDR_FONT = Font(bold=True, color="FFFFFF")
@@ -437,21 +439,31 @@ def exporta_excel(model, caminho):
     ord_side = Side(style="thin", color="E2611C")
     LOGO_BORDER = Border(left=ord_side, right=ord_side, top=ord_side, bottom=ord_side)
 
+    tem_logo = os.path.isfile(cfg.logo_path)
+    BRANCO = PatternFill("solid", fgColor="FFFFFF")
+
     def caixa_logo(ws):
-        """Reserva um espaco no canto superior esquerdo para o logo da empresa."""
+        """Reserva o canto superior esquerdo para o logo (imagem, se existir)."""
         ws.merge_cells("A1:C6")
         c = ws["A1"]
-        c.value = "LOGO DA EMPRESA\n(inserir aqui)"
-        c.fill = LOGO_FILL
+        c.fill = BRANCO if tem_logo else LOGO_FILL
+        c.value = None if tem_logo else "LOGO DA EMPRESA\n(inserir aqui)"
         c.font = LOGO_FONT
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         for row in ws["A1:C6"]:
             for cell in row:
                 cell.border = LOGO_BORDER
-                if cell.fill.fgColor.rgb in (None, "00000000"):
+                if not tem_logo and cell.fill.patternType is None:
                     cell.fill = LOGO_FILL
         for r in range(1, 7):
             ws.row_dimensions[r].height = 17
+        if tem_logo:
+            from openpyxl.drawing.image import Image as XLImage
+            img = XLImage(cfg.logo_path)
+            alt = 116
+            img.height, img.width = alt, int(alt * img.width / img.height)
+            img.anchor = "A1"
+            ws.add_image(img)
         return 8  # conteudo comeca aqui
 
     def escreve(ws, df, titulo=None, logo=False, banding=False):

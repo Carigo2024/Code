@@ -23,7 +23,11 @@ comprados da matriz UPI) contra o recebimento físico. Motor em Python
 
 O passo manual é só soltar o arquivo na pasta; o resto é automático (~7 s).
 
-> Requisitos: Python 3.9+ com `pandas` e `openpyxl` (`pip install pandas openpyxl`).
+> Requisitos: Python 3.9+ com `pandas`, `openpyxl` e `pillow`
+> (`pip install pandas openpyxl pillow`).
+
+> **Logo:** se existir um `data/logo.png`, ele entra automaticamente nas abas de
+> apresentação do Excel e no cabeçalho do dashboard HTML a cada geração.
 
 ---
 

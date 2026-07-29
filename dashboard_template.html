@@ -62,9 +62,12 @@
 </style>
 </head>
 <body>
-<header>
-  <h1>Acuracidade do Forecast de Importacao &middot; UPI (intercompany)</h1>
-  <div class="meta" id="meta"></div>
+<header style="display:flex;align-items:center;gap:16px">
+  <img id="logo" alt="" style="height:40px;width:auto;display:none;flex-shrink:0">
+  <div>
+    <h1>Acuracidade do Forecast de Importacao &middot; UPI (intercompany)</h1>
+    <div class="meta" id="meta"></div>
+  </div>
 </header>
 <div class="wrap">
   <nav id="nav"></nav>
@@ -116,6 +119,7 @@ function hbars(rows,{max=null,color=(r=>CF),fmtV=fmt}={}){
 }
 // ---------- meta + nav ----------
 const M=DATA.meta;
+if(M.logo){const l=$('#logo');l.src=M.logo;l.style.display='block';}
 $('#meta').textContent=`Escopo: fornecedor ${M.escopo} · leitura honesta = lag ${M.lag} · janela honesta ${M.win_lag[0]}–${M.win_lag.slice(-1)} · defasagem +${M.offset} mês · ${M.n_itens} itens comparáveis · mês parcial ${M.mes_parcial} fora dos cálculos`;
 const TABS=[['visao','Visão geral'],['rankings','Maiores variações'],['ficha','Ficha do item'],
   ['mestre','Tabela mestre'],['lag','Acurácia por lag'],['estab','Estabilidade'],['excec','Exceções']];

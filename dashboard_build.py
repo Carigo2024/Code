@@ -63,6 +63,14 @@ def _matriz_item(fc_it, act_it, tmax):
                 targets=[yl(t) for t in targets], matrix=matrix, actual=actual)
 
 
+def _logo_datauri(cfg):
+    import base64
+    if cfg.logo_path and os.path.isfile(cfg.logo_path):
+        with open(cfg.logo_path, "rb") as f:
+            return "data:image/png;base64," + base64.b64encode(f.read()).decode()
+    return None
+
+
 def build_payload(model):
     cfg = model["cfg"]
     fc_o, act_o = model["fc_o"], model["act_o"]
@@ -111,6 +119,7 @@ def build_payload(model):
 
     payload = dict(
         meta=dict(escopo=cfg.fornecedor, lag=cfg.lag_honesto, offset=cfg.offset_defasagem,
+                  logo=_logo_datauri(cfg),
                   mes_parcial=cfg.mes_corrente_parcial, n_itens=len(model["overlap"]),
                   win_lag=[yl(t) for t in model["win_lag"]],
                   win_full=[yl(t) for t in model["win_full"]],
