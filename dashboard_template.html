@@ -67,14 +67,21 @@
 <header>
   <img id="logo" alt="" style="height:40px;width:auto;display:none;flex-shrink:0">
   <div>
-    <h1>Acuracidade do Forecast de Importacao &middot; UPI (intercompany)</h1>
+    <h1 id="h1"></h1>
     <div class="meta" id="meta"></div>
   </div>
 </header>
 <div class="ctrl">
-  <span class="small" style="font-weight:600">Leitura (lag):</span>
+  <span class="small" style="font-weight:600" id="lagsel-label"></span>
   <select id="lagsel"></select>
   <span id="lagnote" class="small muted"></span>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
+    <span class="small" style="font-weight:600" id="langsel-label"></span>
+    <select id="langsel">
+      <option value="pt">Português</option>
+      <option value="en">English</option>
+    </select>
+  </span>
 </div>
 <div class="wrap">
   <nav id="nav"></nav>
@@ -94,14 +101,198 @@ const M=DATA.meta, DIM=DATA.itemdim;
 let CUR = M.lag_default;
 const V = ()=>DATA.views[CUR];
 const isCons = ()=>CUR==='cons';
+
+// =================== i18n (traducao controlada, escrita a mao) ===================
+const I18N={
+ pt:{
+  loc:'pt-BR', dsep:',', lang_label:'Idioma:',
+  title:'Acuracidade do Forecast de Importação (UPI)',
+  h1:'Acuracidade do Forecast de Importação · UPI (intercompany)',
+  meta:(esc,n,off,mp)=>`Escopo: fornecedor ${esc} · ${n} itens comparáveis · defasagem física +${off} mês · mês parcial ${mp} fora dos cálculos`,
+  lag_label:'Leitura (lag):',
+  lagnote_win:'janela: ',
+  lagnote_cons:' · otimista (usa a última safra)',
+  lagnote_zero:' · mesmo mês (diagnóstico)',
+  lagnote_honesto:' · leitura honesta',
+  lag_opt_honesto:L=>`Lag ${L} · honesto (decisão de compra)`,
+  lag_opt_zero:'Lag 0 · mesmo mês',
+  lag_opt_normal:L=>`Lag ${L}`,
+  lag_opt_cons:'Consolidado · última safra (otimista)',
+  modo_cons:'consolidada (última safra — otimista)',
+  modo_zero:'lag 0 (mesmo mês — diagnóstico)',
+  modo_honesto:c=>`lag ${c} (honesto)`,
+  modo_normal:c=>`lag ${c}`,
+  tabs:['Visão geral','Maiores variações','Ficha do item','Tabela mestre','Acurácia por lag','Estabilidade','Exceções'],
+  // VISAO
+  v_sub:(modo,meses)=>`Leitura ${modo} · janela ${meses}. Realizado = entrada física UPI (Qtd Delivered).`,
+  v_card_acc:'Acurácia (1−WAPE acum)', v_card_bias:'Bias de volume',
+  v_card_wacum:'WAPE acum (volume)', v_card_wmes:'WAPE mês (com timing)',
+  v_dica_cons:lag=>`<b>Cuidado:</b> a leitura consolidada usa a previsão mais recente — informação que você não tinha na hora da compra. Ela achata o erro (otimista). Para cobrar acurácia, use o lag ${lag}.`,
+  v_dica_zero:lag=>`<b>Diagnóstico:</b> o lag 0 é a previsão feita no próprio mês — a compra já estava travada há ~${lag} meses. Útil para ver o quanto a previsão melhora perto do alvo, mas não é a que dirigiu a compra.`,
+  v_dica_honesto:(lag,off)=>`A leitura honesta é o <b>lag ${lag}</b> (a previsão que travou a compra ~${lag} meses antes). O número de volume é a <b>WAPE acumulada</b>; a WAPE mês é inflada pelo timing de chegada (+${off} mês).`,
+  v_chart:'Previsto vs Recebido por mês (un.)',
+  leg_prev:(cons,cur)=>`Previsto (${cons?'consolidado':'lag '+cur})`,
+  leg_receb:'Recebido', leg_err:'rótulo = erro % do mês',
+  // RANKINGS
+  r_sub:cur=>`Top 15 por variação absoluta (un.) e por variação % (piso: curvas A+B). Leitura atual: ${cur}.`,
+  r_th_item:'Item', r_th_desc:'Descrição', r_th_abc:'ABC',
+  r_th_erro:'Erro (un)', r_th_bias:'Bias %', r_th_prev:'Prev', r_th_receb:'Receb',
+  r_b_abs_over:'Variação ABSOLUTA — superprevisão (prev > receb)',
+  r_b_abs_under:'Variação ABSOLUTA — subprevisão (receb > prev)',
+  r_b_pct_over:'Variação % — superprevisão (A+B)',
+  r_b_pct_under:'Variação % — subprevisão (A+B)',
+  // FICHA
+  f_sub:'Selecione qualquer item comparável (UPI). Métricas na leitura atual; a matriz e a acurácia por lag mostram todos os lags.',
+  f_item:'Item:', f_abc:abc=>`ABC ${abc}`,
+  f_dims:(fam,marca,um,st,ch)=>`Família: ${fam} · Marca: ${marca} · UM: ${um} · Status: ${st} · Churn: ${ch}`,
+  f_no_metric:cur=>`Este item não tem previsão nesta leitura (${cur}). Veja a matriz abaixo ou troque o lag.`,
+  f_c_prev:'Previsto', f_c_receb:'Recebido', f_c_bias:'Bias', f_c_wacum:'WAPE acum',
+  f_c_acc:'Acurácia', f_c_ts:'Tracking signal',
+  f_pattern:(cur,lab,acao)=>`<b>Padrão (${cur}):</b> ${lab}. <b>Ação:</b> ${acao}`,
+  f_chart:(cons,cur)=>`Previsto (${cons?'consolidado':'lag '+cur}) vs Recebido — mês a mês`,
+  f_mtx_corner:'Safra ╲ Alvo', f_realizado:'Realizado',
+  f_mtx_title:'Matriz Safra × Mês-alvo (previsto) + Realizado',
+  f_mtx_help:'Cada linha é uma safra; a intensidade da cor (teal) é o volume previsto. A última linha (laranja) é o recebido — dá para ver se o erro foi de volume ou de timing.',
+  f_lagacc:'Acurácia por lag deste item (WAPE acum %)',
+  // MESTRE
+  m_h2:'Tabela mestre de itens',
+  m_sub:cur=>`Todos os itens na leitura atual (${cur}). Clique no cabeçalho para ordenar; filtre e exporte.`,
+  m_cols:{item:'Item',desc:'Descrição',familia:'Família',abc:'ABC',status:'Status',classe:'Padrão',
+          vol_recv:'Vol receb',F_lag:'Prev',A:'Receb',bias:'Bias',wape_acum:'WAPE ac',acuracia:'Acur',
+          tracking_signal:'TS',churn:'Churn'},
+  m_fam_all:'Família: todas', m_abc_all:'ABC: todos', m_cl_all:'Padrão: todos',
+  m_search:'buscar item/descrição', m_export:'Exportar CSV', m_count:n=>`${n} itens`,
+  // LAG
+  l_h2:'Acurácia por lag (horizonte)',
+  l_sub:'A partir de qual antecedência a previsão é confiável — cada lag na sua janela de meses fechados. (Compara todos os lags; independe do seletor acima.)',
+  l_wape:'WAPE por lag', l_leg_mes:'WAPE mês', l_leg_acum:'WAPE acum (volume)',
+  l_th_lag:'Lag', l_th_win:'Janela', l_th_bias:'Bias', l_th_wmes:'WAPE mês', l_th_wacum:'WAPE acum',
+  l_detalhe:'Detalhe',
+  // ESTAB
+  e_h2:'Estabilidade do forecast (churn)',
+  e_sub:'Quanto a previsão de um mesmo mês-alvo variou entre safras sucessivas. Alto churn = planejamento instável para a matriz.',
+  e_avg:'Churn médio', e_top:'Top 20 itens por churn',
+  // EXCEC
+  x_sub:cur=>`Órfãos, tracking signal fora de controle (leitura ${cur}) e itens novos/descontinuados.`,
+  x_prev_nr:'Previsto e não recebido (UPI)', x_recv_np:'Recebido sem previsão',
+  x_new:'Itens novos (entraram no ano)', x_disc:'Itens descontinuados (saíram)',
+  x_ts:n=>`Tracking signal fora de controle |TS|>4 (${n})`,
+  x_th_item:'Item', x_th_desc:'Descrição', x_th_ts:'TS', x_th_bias:'Bias', x_th_classe:'Classe',
+ },
+ en:{
+  loc:'en-US', dsep:'.', lang_label:'Language:',
+  title:'Import Forecast Accuracy (UPI)',
+  h1:'Import Forecast Accuracy · UPI (intercompany)',
+  meta:(esc,n,off,mp)=>`Scope: supplier ${esc} · ${n} comparable items · physical lag +${off} month · partial month ${mp} excluded from calculations`,
+  lag_label:'Reading (lag):',
+  lagnote_win:'window: ',
+  lagnote_cons:' · optimistic (uses the latest vintage)',
+  lagnote_zero:' · same month (diagnostic)',
+  lagnote_honesto:' · honest reading',
+  lag_opt_honesto:L=>`Lag ${L} · honest (purchase decision)`,
+  lag_opt_zero:'Lag 0 · same month',
+  lag_opt_normal:L=>`Lag ${L}`,
+  lag_opt_cons:'Consolidated · latest vintage (optimistic)',
+  modo_cons:'consolidated (latest vintage — optimistic)',
+  modo_zero:'lag 0 (same month — diagnostic)',
+  modo_honesto:c=>`lag ${c} (honest)`,
+  modo_normal:c=>`lag ${c}`,
+  tabs:['Overview','Biggest variances','Item sheet','Master table','Accuracy by lag','Stability','Exceptions'],
+  // VISAO
+  v_sub:(modo,meses)=>`Reading ${modo} · window ${meses}. Actual = UPI physical entry (Qty Delivered).`,
+  v_card_acc:'Accuracy (1−cum. WAPE)', v_card_bias:'Volume bias',
+  v_card_wacum:'Cum. WAPE (volume)', v_card_wmes:'Monthly WAPE (with timing)',
+  v_dica_cons:lag=>`<b>Caution:</b> the consolidated reading uses the most recent forecast — information you did not have at purchase time. It flattens the error (optimistic). To hold accuracy accountable, use lag ${lag}.`,
+  v_dica_zero:lag=>`<b>Diagnostic:</b> lag 0 is the forecast made in the target month itself — the purchase was already locked ~${lag} months earlier. Useful to see how much the forecast improves near the target, but it is not the one that drove the purchase.`,
+  v_dica_honesto:(lag,off)=>`The honest reading is <b>lag ${lag}</b> (the forecast that locked the purchase ~${lag} months earlier). The volume figure is the <b>cumulative WAPE</b>; the monthly WAPE is inflated by arrival timing (+${off} month).`,
+  v_chart:'Forecast vs Received by month (units)',
+  leg_prev:(cons,cur)=>`Forecast (${cons?'consolidated':'lag '+cur})`,
+  leg_receb:'Received', leg_err:'label = month error %',
+  // RANKINGS
+  r_sub:cur=>`Top 15 by absolute variance (units) and by % variance (floor: A+B classes). Current reading: ${cur}.`,
+  r_th_item:'Item', r_th_desc:'Description', r_th_abc:'ABC',
+  r_th_erro:'Error (u)', r_th_bias:'Bias %', r_th_prev:'Fcst', r_th_receb:'Recv',
+  r_b_abs_over:'ABSOLUTE variance — over-forecast (fcst > recv)',
+  r_b_abs_under:'ABSOLUTE variance — under-forecast (recv > fcst)',
+  r_b_pct_over:'% variance — over-forecast (A+B)',
+  r_b_pct_under:'% variance — under-forecast (A+B)',
+  // FICHA
+  f_sub:'Select any comparable item (UPI). Metrics use the current reading; the matrix and accuracy-by-lag show all lags.',
+  f_item:'Item:', f_abc:abc=>`ABC ${abc}`,
+  f_dims:(fam,marca,um,st,ch)=>`Family: ${fam} · Brand: ${marca} · UoM: ${um} · Status: ${st} · Churn: ${ch}`,
+  f_no_metric:cur=>`This item has no forecast in this reading (${cur}). See the matrix below or change the lag.`,
+  f_c_prev:'Forecast', f_c_receb:'Received', f_c_bias:'Bias', f_c_wacum:'Cum. WAPE',
+  f_c_acc:'Accuracy', f_c_ts:'Tracking signal',
+  f_pattern:(cur,lab,acao)=>`<b>Pattern (${cur}):</b> ${lab}. <b>Action:</b> ${acao}`,
+  f_chart:(cons,cur)=>`Forecast (${cons?'consolidated':'lag '+cur}) vs Received — month by month`,
+  f_mtx_corner:'Vintage ╲ Target', f_realizado:'Actual',
+  f_mtx_title:'Vintage × Target-month matrix (forecast) + Actual',
+  f_mtx_help:'Each row is a vintage; color intensity (teal) is the forecast volume. The last row (orange) is the received — you can see whether the error was volume or timing.',
+  f_lagacc:'Accuracy by lag for this item (cum. WAPE %)',
+  // MESTRE
+  m_h2:'Item master table',
+  m_sub:cur=>`All items in the current reading (${cur}). Click a header to sort; filter and export.`,
+  m_cols:{item:'Item',desc:'Description',familia:'Family',abc:'ABC',status:'Status',classe:'Pattern',
+          vol_recv:'Vol recv',F_lag:'Fcst',A:'Recv',bias:'Bias',wape_acum:'Cum WAPE',acuracia:'Acc',
+          tracking_signal:'TS',churn:'Churn'},
+  m_fam_all:'Family: all', m_abc_all:'ABC: all', m_cl_all:'Pattern: all',
+  m_search:'search item/description', m_export:'Export CSV', m_count:n=>`${n} items`,
+  // LAG
+  l_h2:'Accuracy by lag (horizon)',
+  l_sub:'From how far ahead the forecast is reliable — each lag on its window of closed months. (Compares all lags; independent of the selector above.)',
+  l_wape:'WAPE by lag', l_leg_mes:'Monthly WAPE', l_leg_acum:'Cum. WAPE (volume)',
+  l_th_lag:'Lag', l_th_win:'Window', l_th_bias:'Bias', l_th_wmes:'Monthly WAPE', l_th_wacum:'Cum. WAPE',
+  l_detalhe:'Detail',
+  // ESTAB
+  e_h2:'Forecast stability (churn)',
+  e_sub:'How much the forecast for the same target month varied across successive vintages. High churn = unstable planning for the matrix.',
+  e_avg:'Average churn', e_top:'Top 20 items by churn',
+  // EXCEC
+  x_sub:cur=>`Orphans, out-of-control tracking signal (reading ${cur}) and new/discontinued items.`,
+  x_prev_nr:'Forecast and not received (UPI)', x_recv_np:'Received without forecast',
+  x_new:'New items (entered this year)', x_disc:'Discontinued items (left)',
+  x_ts:n=>`Out-of-control tracking signal |TS|>4 (${n})`,
+  x_th_item:'Item', x_th_desc:'Description', x_th_ts:'TS', x_th_bias:'Bias', x_th_classe:'Class',
+ }
+};
+// classes: rotulo + acao derivados do CODIGO (classe), nao do texto que veio do Python
+const CLASSE_I18N={
+ pt:{
+  sob_controle:{l:'Sob controle',a:'Nenhuma — dentro da tolerância.'},
+  vies_super:{l:'Viés superprevisão',a:'Superprevisão crônica: corrigir método/premissa; revisar estoque (capital parado).'},
+  vies_sub:{l:'Viés subprevisão',a:'Subprevisão crônica: revisar premissa e estoque de segurança (risco de ruptura).'},
+  timing:{l:'Erro de timing',a:'Volume bate, meses não: tratar com lead time (+1 mês) e bucket, não mudar a previsão.'},
+  erratico:{l:'Errático',a:'Alta dispersão sem viés: cobrir com estoque de segurança, não adianta prever melhor.'},
+  nao_previsto:{l:'Não previsto',a:'Recebido sem previsão na janela: incluir no forecast da matriz.'},
+ },
+ en:{
+  sob_controle:{l:'Under control',a:'None — within tolerance.'},
+  vies_super:{l:'Over-forecast bias',a:'Chronic over-forecast: fix method/assumption; review stock (tied-up capital).'},
+  vies_sub:{l:'Under-forecast bias',a:'Chronic under-forecast: review assumption and safety stock (stockout risk).'},
+  timing:{l:'Timing error',a:"Volume matches, months don't: treat with lead time (+1 month) and buckets, don't change the forecast."},
+  erratico:{l:'Erratic',a:"High dispersion without bias: cover with safety stock; forecasting better won't help."},
+  nao_previsto:{l:'Not forecast',a:'Received without forecast in the window: add it to the matrix forecast.'},
+ }
+};
+const STATUS_I18N={
+ pt:{novo:'novo',descontinuado:'descontinuado',ativo:'ativo',sem_forecast:'sem forecast'},
+ en:{novo:'new',descontinuado:'discontinued',ativo:'active',sem_forecast:'no forecast'}
+};
+let L = (function(){try{const s=localStorage.getItem('fc_lang');return (s==='en'||s==='pt')?s:'pt';}catch(e){return 'pt';}})();
+let T = I18N[L];
+let LOCALE = T.loc, DSEP = T.dsep;
+const clLabel=code=>((CLASSE_I18N[L]||CLASSE_I18N.pt)[code]||{l:code}).l;
+const clAcao =code=>((CLASSE_I18N[L]||CLASSE_I18N.pt)[code]||{a:''}).a;
+const stLabel=s=>((STATUS_I18N[L]||STATUS_I18N.pt)[s]||s||'');
+
 // ---------- helpers ----------
 const $=(s,r=document)=>r.querySelector(s), el=(t,a={},...k)=>{const e=document.createElement(t);
   for(const[p,v]of Object.entries(a)){if(p==='class')e.className=v;else if(p==='html')e.innerHTML=v;else e.setAttribute(p,v);}
   k.flat().forEach(c=>e.append(c&&c.nodeType?c:document.createTextNode(c==null?'':c)));return e;};
-const fmt=n=>n==null?'–':Math.round(n).toLocaleString('pt-BR');
-const fmtK=n=>{n=n||0;const a=Math.abs(n);return a>=1e6?(n/1e6).toFixed(1).replace('.',',')+'M':a>=1e3?(n/1e3).toFixed(0)+'k':Math.round(n).toString();};
-const pct=n=>n==null?'–':(n*100).toFixed(1)+'%';
-const pctS=n=>n==null?'–':(n*100>=0?'+':'')+(n*100).toFixed(1)+'%';
+const fmt=n=>n==null?'–':Math.round(n).toLocaleString(LOCALE);
+const fmtK=n=>{n=n||0;const a=Math.abs(n);return a>=1e6?(n/1e6).toFixed(1).replace('.',DSEP)+'M':a>=1e3?(n/1e3).toFixed(0)+'k':Math.round(n).toString();};
+const pct=n=>n==null?'–':(n*100).toFixed(1).replace('.',DSEP)+'%';
+const pctS=n=>n==null?'–':(n*100>=0?'+':'')+(n*100).toFixed(1).replace('.',DSEP)+'%';
 const CF='#1b9e77',CA='#e2611c',COVER='#e34948',CUND='#5a6b7a',BRAND='#d9601c';
 const mkey=l=>{const p=l.split('-');return (+p[0])*12+(+p[1]-1);};
 const mlabel=k=>String(Math.floor(k/12)).padStart(4,'0')+'-'+String(k%12+1).padStart(2,'0');
@@ -128,21 +319,46 @@ function hbars(rows,{color=(r=>BRAND),fmtV=fmt}={}){
     <div style="flex:1;background:#f0efec;border-radius:4px"><div style="width:${Math.abs(r.v)/m*100}%;background:${color(r)};height:14px;border-radius:4px"></div></div>
     <div style="width:74px;text-align:right" class="small"><b>${fmtV(r.v)}</b></div></div>`).join('')+`</div>`;
 }
-// ---------- meta + nav + seletor ----------
+
+// ---------- rotulos derivados de leitura (lag/consolidado) ----------
+function lagKind(key){ if(key==='cons')return 'cons'; if(key===String(M.lag))return 'honesto'; if(key==='0')return 'zero'; return 'normal'; }
+function lagLabel(o){ const k=lagKind(o.key);
+  if(k==='cons')return T.lag_opt_cons; if(k==='honesto')return T.lag_opt_honesto(o.key);
+  if(k==='zero')return T.lag_opt_zero; return T.lag_opt_normal(o.key); }
+function modoLabel(){ if(isCons())return T.modo_cons; if(CUR==='0')return T.modo_zero;
+  if(CUR===String(M.lag))return T.modo_honesto(CUR); return T.modo_normal(CUR); }
+const curReading=()=>lagsel.options[lagsel.selectedIndex].text;
+
+// ---------- logo + nav + seletores (estrutura fixa; textos via renderChrome) ----------
 if(M.logo){const l=$('#logo');l.src=M.logo;l.style.display='block';}
-$('#meta').textContent=`Escopo: fornecedor ${M.escopo} · ${M.n_itens} itens comparáveis · defasagem física +${M.offset} mês · mês parcial ${M.mes_parcial} fora dos cálculos`;
-const TABS=[['visao','Visão geral'],['rankings','Maiores variações'],['ficha','Ficha do item'],
-  ['mestre','Tabela mestre'],['lag','Acurácia por lag'],['estab','Estabilidade'],['excec','Exceções']];
-TABS.forEach(([id,lb],i)=>{const a=el('a',{class:i===0?'active':''},lb);a.onclick=()=>{
+const navAnchors=[];
+const TABIDS=['visao','rankings','ficha','mestre','lag','estab','excec'];
+TABIDS.forEach((id,i)=>{const a=el('a',{class:i===0?'active':''},'');a.onclick=()=>{
   document.querySelectorAll('nav a').forEach(x=>x.classList.remove('active'));a.classList.add('active');
   document.querySelectorAll('section').forEach(s=>s.classList.remove('on'));$('#'+id).classList.add('on');};
-  $('#nav').append(a);});
+  $('#nav').append(a);navAnchors.push(a);});
 const lagsel=$('#lagsel');
-M.lags.forEach(o=>lagsel.append(el('option',{value:o.key},o.label)));
+M.lags.forEach(o=>lagsel.append(el('option',{value:o.key},'')));
 lagsel.value=CUR;
-function setLagNote(){$('#lagnote').textContent =
-  'janela: '+V().window.join(', ')+(isCons()?' · otimista (usa a última safra)':(CUR==='0'?' · mesmo mês (diagnóstico)':(CUR===String(M.lag)?' · leitura honesta':'')));}
 lagsel.onchange=()=>{CUR=lagsel.value;renderDynamic();setLagNote();};
+const langsel=$('#langsel');
+langsel.value=L;
+langsel.onchange=()=>setLang(langsel.value);
+
+function setLagNote(){$('#lagnote').textContent = T.lagnote_win + V().window.join(', ') +
+  (isCons()?T.lagnote_cons:(CUR==='0'?T.lagnote_zero:(CUR===String(M.lag)?T.lagnote_honesto:'')));}
+
+function renderChrome(){
+  document.documentElement.lang = (L==='pt'?'pt-br':'en');
+  document.title = T.title;
+  $('#h1').textContent = T.h1;
+  $('#meta').textContent = T.meta(M.escopo,M.n_itens,M.offset,M.mes_parcial);
+  $('#lagsel-label').textContent = T.lag_label;
+  $('#langsel-label').textContent = T.lang_label;
+  navAnchors.forEach((a,i)=>a.textContent=T.tabs[i]);
+  M.lags.forEach((o,i)=>{lagsel.options[i].textContent=lagLabel(o);});
+  setLagNote();
+}
 
 // merge metricas do view atual + dimensoes do item
 const rowsMestre=()=>V().metrics.map(m=>Object.assign({},DIM[m.item]||{},m));
@@ -150,30 +366,27 @@ const metricOf=it=>V().metrics.find(m=>m.item===it);
 
 // ---------- VISAO GERAL ----------
 function renderVisao(){const s=$('#visao');s.innerHTML='';const a=V().agg,o=V().overview;
-  const modo=isCons()?'consolidada (última safra — otimista)':(CUR==='0'?'lag 0 (mesmo mês — diagnóstico)':'lag '+CUR+(CUR===String(M.lag)?' (honesto)':''));
-  s.append(el('h2',{},'Visão geral'),el('div',{class:'sub'},`Leitura ${modo} · janela ${o.meses.join(', ')}. Realizado = entrada física UPI (Qtd Delivered).`));
+  s.append(el('h2',{},T.tabs[0]),el('div',{class:'sub'},T.v_sub(modoLabel(),o.meses.join(', '))));
   const cards=el('div',{class:'cards'});
   const mk=(l,v,cls='')=>el('div',{class:'card'},el('div',{class:'lbl'},l),el('div',{class:'val '+cls},v));
-  cards.append(mk('Acurácia (1−WAPE acum)',pct(a.acuracia)),mk('Bias de volume',pctS(a.bias),a.bias>=0?'pos':'neg'),
-    mk('WAPE acum (volume)',pct(a.wape_acum)),mk('WAPE mês (com timing)',pct(a.wape_mes)));
+  cards.append(mk(T.v_card_acc,pct(a.acuracia)),mk(T.v_card_bias,pctS(a.bias),a.bias>=0?'pos':'neg'),
+    mk(T.v_card_wacum,pct(a.wape_acum)),mk(T.v_card_wmes,pct(a.wape_mes)));
   s.append(cards);
-  const dica = isCons()
-    ? `<b>Cuidado:</b> a leitura consolidada usa a previsão mais recente — informação que você não tinha na hora da compra. Ela achata o erro (otimista). Para cobrar acurácia, use o lag ${M.lag}.`
-    : (CUR==='0'
-      ? `<b>Diagnóstico:</b> o lag 0 é a previsão feita no próprio mês — a compra já estava travada há ~${M.lag} meses. Útil para ver o quanto a previsão melhora perto do alvo, mas não é a que dirigiu a compra.`
-      : `A leitura honesta é o <b>lag ${M.lag}</b> (a previsão que travou a compra ~${M.lag} meses antes). O número de volume é a <b>WAPE acumulada</b>; a WAPE mês é inflada pelo timing de chegada (+${M.offset} mês).`);
+  const dica = isCons()? T.v_dica_cons(M.lag)
+    : (CUR==='0'? T.v_dica_zero(M.lag) : T.v_dica_honesto(M.lag,M.offset));
   s.append(el('div',{class:'note',html:dica}));
-  s.append(el('div',{class:'panel'},el('h3',{},'Previsto vs Recebido por mês (un.)'),
-    el('div',{class:'legend',html:`<span><b style="background:${CF}"></b>Previsto (${isCons()?'consolidado':'lag '+CUR})</span><span><b style="background:${CA}"></b>Recebido</span><span class="small">rótulo = erro % do mês</span>`}),
+  s.append(el('div',{class:'panel'},el('h3',{},T.v_chart),
+    el('div',{class:'legend',html:`<span><b style="background:${CF}"></b>${T.leg_prev(isCons(),CUR)}</span><span><b style="background:${CA}"></b>${T.leg_receb}</span><span class="small">${T.leg_err}</span>`}),
     el('div',{html:barGroup(o.meses,[{name:'P',color:CF,values:o.F},{name:'R',color:CA,values:o.A}],{labelErr:o.err})})));
 }
 
 // ---------- RANKINGS ----------
 function renderRankings(){const s=$('#rankings');s.innerHTML='';
-  s.append(el('h2',{},'Maiores variações'),el('div',{class:'sub'},`Top 15 por variação absoluta (un.) e por variação % (piso: curvas A+B). Leitura atual: ${lagsel.options[lagsel.selectedIndex].text}.`));
+  s.append(el('h2',{},T.tabs[1]),el('div',{class:'sub'},T.r_sub(curReading())));
   const R=V().rankings;
   const tbl=(rows,tipo)=>{const t=el('table');
-    t.append(el('tr',{},...['Item','Descrição','ABC',tipo==='abs'?'Erro (un)':'Bias %','Prev','Receb'].map(h=>el('th',{class:h==='Item'||h==='Descrição'?'l':''},h))));
+    t.append(el('tr',{},...[[T.r_th_item,'l'],[T.r_th_desc,'l'],[T.r_th_abc,''],
+      [tipo==='abs'?T.r_th_erro:T.r_th_bias,''],[T.r_th_prev,''],[T.r_th_receb,'']].map(([h,cl])=>el('th',{class:cl},h))));
     (rows||[]).forEach(r=>{const d=DIM[r.item]||{};t.append(el('tr',{},
       el('td',{class:'l'},r.item),el('td',{class:'l',title:d.desc},(d.desc||'').slice(0,26)),
       el('td',{},el('span',{class:'chip b-abc'+r.abc},r.abc)),
@@ -182,10 +395,10 @@ function renderRankings(){const s=$('#rankings');s.innerHTML='';
     return t;};
   const block=(title,rows,tipo)=>el('div',{class:'panel'},el('h3',{},title),el('div',{class:'scroll'},tbl(rows,tipo)));
   s.append(el('div',{class:'grid2'},
-    block('Variação ABSOLUTA — superprevisão (prev > receb)',R.abs_over,'abs'),
-    block('Variação ABSOLUTA — subprevisão (receb > prev)',R.abs_under,'abs'),
-    block('Variação % — superprevisão (A+B)',R.pct_over,'pct'),
-    block('Variação % — subprevisão (A+B)',R.pct_under,'pct')));
+    block(T.r_b_abs_over,R.abs_over,'abs'),
+    block(T.r_b_abs_under,R.abs_under,'abs'),
+    block(T.r_b_pct_over,R.pct_over,'pct'),
+    block(T.r_b_pct_under,R.pct_under,'pct')));
 }
 
 // ---------- FICHA DO ITEM ----------
@@ -197,139 +410,148 @@ function fichaSeries(item){const mtz=DATA.detalhe[item].matriz,win=V().window,ou
     out.meses.push(t);out.F.push(F||0);out.A.push(mtz.actual[tj]||0);});
   return out;}
 function renderFicha(){const s=$('#ficha');s.innerHTML='';
-  s.append(el('h2',{},'Ficha do item'),el('div',{class:'sub'},'Selecione qualquer item comparável (UPI). Métricas na leitura atual; a matriz e a acurácia por lag mostram todos os lags.'));
+  s.append(el('h2',{},T.tabs[2]),el('div',{class:'sub'},T.f_sub));
   const sorted=Object.keys(DIM).sort((a,b)=>(DIM[b].vol_recv||0)-(DIM[a].vol_recv||0));
   if(!fichaItem||!DIM[fichaItem])fichaItem=sorted[0];
   const sel=el('select',{style:'min-width:340px'});
   sorted.forEach(it=>sel.append(el('option',{value:it},`${it} · ${(DIM[it].desc||'').slice(0,34)} [${DIM[it].abc}]`)));
   sel.value=fichaItem;sel.onchange=()=>{fichaItem=sel.value;renderFicha();};
   const box=el('div');
-  s.append(el('div',{class:'filters'},el('span',{class:'small'},'Item:'),sel),box);
+  s.append(el('div',{class:'filters'},el('span',{class:'small'},T.f_item),sel),box);
   const it=fichaItem,d=DIM[it],m=metricOf(it),det=DATA.detalhe[it];
   box.append(el('div',{class:'panel'},
-    el('h3',{html:`${it} — ${d.desc||''} <span class="chip b-abc${d.abc}">ABC ${d.abc}</span>${m?` <span class="cl cl-${m.classe}">${m.classe_label}</span>`:''}`}),
-    el('div',{class:'small'},`Família: ${d.familia||'–'} · Marca: ${d.marca||'–'} · UM: ${d.um||'–'} · Status: ${d.status} · Churn: ${pct(d.churn)}`)));
-  if(!m){box.append(el('div',{class:'note',html:`Este item não tem previsão nesta leitura (${lagsel.options[lagsel.selectedIndex].text}). Veja a matriz abaixo ou troque o lag.`}));}
+    el('h3',{html:`${it} — ${d.desc||''} <span class="chip b-abc${d.abc}">${T.f_abc(d.abc)}</span>${m?` <span class="cl cl-${m.classe}">${clLabel(m.classe)}</span>`:''}`}),
+    el('div',{class:'small'},T.f_dims(d.familia||'–',d.marca||'–',d.um||'–',stLabel(d.status),pct(d.churn)))));
+  if(!m){box.append(el('div',{class:'note',html:T.f_no_metric(curReading())}));}
   else{const cards=el('div',{class:'cards'});
     const mk=(l,v,cls='')=>el('div',{class:'card'},el('div',{class:'lbl'},l),el('div',{class:'val '+cls},v));
-    cards.append(mk('Previsto',fmt(m.F_lag)),mk('Recebido',fmt(m.A)),mk('Bias',pctS(m.bias),m.bias>=0?'pos':'neg'),
-      mk('WAPE acum',pct(m.wape_acum)),mk('Acurácia',pct(m.acuracia)),mk('Tracking signal',m.tracking_signal));
+    cards.append(mk(T.f_c_prev,fmt(m.F_lag)),mk(T.f_c_receb,fmt(m.A)),mk(T.f_c_bias,pctS(m.bias),m.bias>=0?'pos':'neg'),
+      mk(T.f_c_wacum,pct(m.wape_acum)),mk(T.f_c_acc,pct(m.acuracia)),mk(T.f_c_ts,m.tracking_signal));
     box.append(cards);
-    box.append(el('div',{class:'note',html:`<b>Padrão (${lagsel.options[lagsel.selectedIndex].text}):</b> ${m.classe_label}. <b>Ação:</b> ${m.acao}`}));
+    box.append(el('div',{class:'note',html:T.f_pattern(curReading(),clLabel(m.classe),clAcao(m.classe))}));
     const ser=fichaSeries(it);
-    box.append(el('div',{class:'panel'},el('h3',{},`Previsto (${isCons()?'consolidado':'lag '+CUR}) vs Recebido — mês a mês`),
-      el('div',{class:'legend',html:`<span><b style="background:${CF}"></b>Previsto</span><span><b style="background:${CA}"></b>Recebido</span>`}),
+    box.append(el('div',{class:'panel'},el('h3',{},T.f_chart(isCons(),CUR)),
+      el('div',{class:'legend',html:`<span><b style="background:${CF}"></b>${T.f_c_prev}</span><span><b style="background:${CA}"></b>${T.f_c_receb}</span>`}),
       el('div',{html:barGroup(ser.meses,[{name:'P',color:CF,values:ser.F},{name:'R',color:CA,values:ser.A}],
         {labelErr:ser.F.map((f,i)=>f?((ser.A[i]-f)/f*100):null)})})));
   }
   // matriz safra x alvo (todos os lags)
   const mtz=det.matriz,mt=el('table',{class:'matrix'});
-  mt.append(el('tr',{},el('th',{class:'l'},'Safra ╲ Alvo'),...mtz.targets.map(t=>el('th',{},t))));
+  mt.append(el('tr',{},el('th',{class:'l'},T.f_mtx_corner),...mtz.targets.map(t=>el('th',{},t))));
   const allv=mtz.matrix.flat().filter(x=>x!=null);const vmax=Math.max(1,...allv);
   mtz.vintages.forEach((v,vi)=>{const tr=el('tr',{},el('th',{class:'l'},v));
     mtz.matrix[vi].forEach(val=>{const bg=val==null?'#fff':`rgba(27,158,119,${0.08+0.5*val/vmax})`;
       tr.append(el('td',{style:`background:${bg}`},val==null?'':fmt(val)));});mt.append(tr);});
-  const trR=el('tr',{class:'realizado'},el('th',{class:'l'},'Realizado'));
+  const trR=el('tr',{class:'realizado'},el('th',{class:'l'},T.f_realizado));
   mtz.actual.forEach(val=>trR.append(el('td',{style:'background:#fdece4'},val==null?'':fmt(val))));mt.append(trR);
-  box.append(el('div',{class:'panel'},el('h3',{},'Matriz Safra × Mês-alvo (previsto) + Realizado'),
-    el('div',{class:'small'},'Cada linha é uma safra; a intensidade da cor (teal) é o volume previsto. A última linha (laranja) é o recebido — dá para ver se o erro foi de volume ou de timing.'),
+  box.append(el('div',{class:'panel'},el('h3',{},T.f_mtx_title),
+    el('div',{class:'small'},T.f_mtx_help),
     el('div',{class:'scroll'},mt)));
   if(det.lag_acc.length){const rows=det.lag_acc.map(x=>({label:'lag '+x.lag,v:x.wape_acum==null?0:x.wape_acum*100}));
-    box.append(el('div',{class:'panel'},el('h3',{},'Acurácia por lag deste item (WAPE acum %)'),
+    box.append(el('div',{class:'panel'},el('h3',{},T.f_lagacc),
       el('div',{html:hbars(rows,{fmtV:v=>v.toFixed(0)+'%',color:r=>r.v>40?COVER:BRAND})})));}
 }
 
 // ---------- TABELA MESTRE ----------
 let sortk='vol_recv',asc=false;
 function renderMestre(){const s=$('#mestre');s.innerHTML='';
-  s.append(el('h2',{},'Tabela mestre de itens'),el('div',{class:'sub'},`Todos os itens na leitura atual (${lagsel.options[lagsel.selectedIndex].text}). Clique no cabeçalho para ordenar; filtre e exporte.`));
-  const cols=[['item','Item','l'],['desc','Descrição','l'],['familia','Família','l'],['abc','ABC',''],
-    ['status','Status','l'],['classe_label','Padrão','l'],['vol_recv','Vol receb',''],['F_lag','Prev',''],
-    ['A','Receb',''],['bias','Bias',''],['wape_acum','WAPE ac',''],['acuracia','Acur',''],
-    ['tracking_signal','TS',''],['churn','Churn','']];
+  s.append(el('h2',{},T.m_h2),el('div',{class:'sub'},T.m_sub(curReading())));
+  const cols=[['item','l'],['desc','l'],['familia','l'],['abc',''],
+    ['status','l'],['classe','l'],['vol_recv',''],['F_lag',''],
+    ['A',''],['bias',''],['wape_acum',''],['acuracia',''],
+    ['tracking_signal',''],['churn','']];
+  const clab=k=>T.m_cols[k]||k;
   const base=rowsMestre();
-  const fFam=el('select',{},el('option',{value:''},'Família: todas'));
+  const fFam=el('select',{},el('option',{value:''},T.m_fam_all));
   [...new Set(base.map(r=>r.familia).filter(Boolean))].sort().forEach(f=>fFam.append(el('option',{value:f},f)));
-  const fAbc=el('select',{},el('option',{value:''},'ABC: todos'),...['A','B','C'].map(x=>el('option',{value:x},'ABC '+x)));
-  const fCl=el('select',{},el('option',{value:''},'Padrão: todos'));
-  [...new Set(base.map(r=>r.classe_label))].forEach(c=>fCl.append(el('option',{value:c},c)));
-  const q=el('input',{placeholder:'buscar item/descrição',style:'min-width:200px'});
-  const exp=el('button',{},'Exportar CSV');const host=el('div',{class:'scroll'});const cnt=el('span',{class:'small muted'});
+  const fAbc=el('select',{},el('option',{value:''},T.m_abc_all),...['A','B','C'].map(x=>el('option',{value:x},'ABC '+x)));
+  const fCl=el('select',{},el('option',{value:''},T.m_cl_all));
+  [...new Set(base.map(r=>r.classe))].forEach(c=>fCl.append(el('option',{value:c},clLabel(c))));
+  const q=el('input',{placeholder:T.m_search,style:'min-width:200px'});
+  const exp=el('button',{},T.m_export);const host=el('div',{class:'scroll'});const cnt=el('span',{class:'small muted'});
   let view=[];
   function apply(){view=base.filter(r=>
     (!fFam.value||r.familia===fFam.value)&&(!fAbc.value||r.abc===fAbc.value)&&
-    (!fCl.value||r.classe_label===fCl.value)&&
+    (!fCl.value||r.classe===fCl.value)&&
     (!q.value||(r.item+' '+(r.desc||'')).toLowerCase().includes(q.value.toLowerCase())));
     view.sort((a,b)=>{let x=a[sortk],y=b[sortk];x=x==null?-1e18:x;y=y==null?-1e18:y;
       if(typeof x==='string')return asc?(''+x).localeCompare(y):(''+y).localeCompare(x);return asc?x-y:y-x;});
     const t=el('table');const hr=el('tr');
-    cols.forEach(([k,l,cl])=>{const th=el('th',{class:cl},l+(sortk===k?(asc?' ▲':' ▼'):''));th.onclick=()=>{if(sortk===k)asc=!asc;else{sortk=k;asc=false;}apply();};hr.append(th);});
+    cols.forEach(([k,cl])=>{const th=el('th',{class:cl},clab(k)+(sortk===k?(asc?' ▲':' ▼'):''));th.onclick=()=>{if(sortk===k)asc=!asc;else{sortk=k;asc=false;}apply();};hr.append(th);});
     t.append(hr);
     view.forEach(r=>{t.append(el('tr',{},
       el('td',{class:'l'},r.item),el('td',{class:'l',title:r.desc},(r.desc||'').slice(0,30)),
       el('td',{class:'l'},r.familia||''),el('td',{},el('span',{class:'chip b-abc'+r.abc},r.abc)),
-      el('td',{class:'l'},r.status),el('td',{class:'l'},el('span',{class:'cl cl-'+r.classe},r.classe_label)),
+      el('td',{class:'l'},stLabel(r.status)),el('td',{class:'l'},el('span',{class:'cl cl-'+r.classe},clLabel(r.classe))),
       el('td',{},fmt(r.vol_recv)),el('td',{},fmt(r.F_lag)),el('td',{},fmt(r.A)),
       el('td',{},pctS(r.bias)),el('td',{},pct(r.wape_acum)),el('td',{},pct(r.acuracia)),
       el('td',{},r.tracking_signal),el('td',{},pct(r.churn))));});
-    host.innerHTML='';host.append(t);cnt.textContent=view.length+' itens';}
+    host.innerHTML='';host.append(t);cnt.textContent=T.m_count(view.length);}
   [fFam,fAbc,fCl].forEach(x=>x.onchange=apply);q.oninput=apply;
-  exp.onclick=()=>{const head=cols.map(c=>c[1]).join(';');
-    const body=view.map(r=>cols.map(c=>{let v=r[c[0]];return v==null?'':(''+v).replace(';',',');}).join(';')).join('\n');
+  exp.onclick=()=>{const head=cols.map(([k])=>clab(k)).join(';');
+    const cell=(r,k)=>{let v=(k==='classe')?clLabel(r.classe):(k==='status')?stLabel(r.status):r[k];return v==null?'':(''+v).replace(';',',');};
+    const body=view.map(r=>cols.map(([k])=>cell(r,k)).join(';')).join('\n');
     const blob=new Blob([head+'\n'+body],{type:'text/csv'});const u=URL.createObjectURL(blob);
     const link=el('a',{href:u,download:'mestre_itens_lag_'+CUR+'.csv'});link.click();URL.revokeObjectURL(u);};
   s.append(el('div',{class:'filters'},q,fFam,fAbc,fCl,exp,cnt),host);apply();
 }
 
 // ---------- ACURACIA POR LAG (independente do seletor) ----------
-(function(){const s=$('#lag');
-  s.append(el('h2',{},'Acurácia por lag (horizonte)'),el('div',{class:'sub'},'A partir de qual antecedência a previsão é confiável — cada lag na sua janela de meses fechados. (Compara todos os lags; independe do seletor acima.)'));
+function renderLag(){const s=$('#lag');s.innerHTML='';
+  s.append(el('h2',{},T.l_h2),el('div',{class:'sub'},T.l_sub));
   const S=DATA.sensibilidade;
-  s.append(el('div',{class:'panel'},el('h3',{},'WAPE por lag'),
-    el('div',{class:'legend',html:`<span><b style="background:#c9c8c3"></b>WAPE mês</span><span><b style="background:${BRAND}"></b>WAPE acum (volume)</span>`}),
+  s.append(el('div',{class:'panel'},el('h3',{},T.l_wape),
+    el('div',{class:'legend',html:`<span><b style="background:#c9c8c3"></b>${T.l_leg_mes}</span><span><b style="background:${BRAND}"></b>${T.l_leg_acum}</span>`}),
     el('div',{html:barGroup(S.map(x=>'lag '+x.lag),
       [{name:'mes',color:'#c9c8c3',values:S.map(x=>x.wape_mes*100)},
        {name:'acum',color:BRAND,values:S.map(x=>x.wape_acum*100)}],{fmtY:v=>v.toFixed(0)+'%'})})));
-  const t=el('table');t.append(el('tr',{},...['Lag','Janela','Bias','WAPE mês','WAPE acum'].map((h,i)=>el('th',{class:i===1?'l':''},h))));
+  const t=el('table');t.append(el('tr',{},...[[T.l_th_lag,''],[T.l_th_win,'l'],[T.l_th_bias,''],[T.l_th_wmes,''],[T.l_th_wacum,'']].map(([h,cl])=>el('th',{class:cl},h))));
   S.forEach(x=>t.append(el('tr',{},el('td',{class:'l'},'lag '+x.lag),el('td',{class:'l small'},x.janela.join(', ')),
     el('td',{},pctS(x.bias)),el('td',{},pct(x.wape_mes)),el('td',{},pct(x.wape_acum)))));
-  s.append(el('div',{class:'panel'},el('h3',{},'Detalhe'),t));
-})();
+  s.append(el('div',{class:'panel'},el('h3',{},T.l_detalhe),t));
+}
 
 // ---------- ESTABILIDADE (churn — independente do seletor) ----------
-(function(){const s=$('#estab');
-  s.append(el('h2',{},'Estabilidade do forecast (churn)'),el('div',{class:'sub'},'Quanto a previsão de um mesmo mês-alvo variou entre safras sucessivas. Alto churn = planejamento instável para a matriz.'));
+function renderEstab(){const s=$('#estab');s.innerHTML='';
+  s.append(el('h2',{},T.e_h2),el('div',{class:'sub'},T.e_sub));
   const arr=Object.entries(DIM).map(([it,d])=>({it,...d}));
   const top=arr.filter(r=>r.churn!=null).sort((a,b)=>b.churn-a.churn).slice(0,20);
   const mean=arr.reduce((a,r)=>a+(r.churn||0),0)/arr.length;
-  s.append(el('div',{class:'cards'},el('div',{class:'card'},el('div',{class:'lbl'},'Churn médio'),el('div',{class:'val'},pct(mean)))));
-  s.append(el('div',{class:'panel'},el('h3',{},'Top 20 itens por churn'),
+  s.append(el('div',{class:'cards'},el('div',{class:'card'},el('div',{class:'lbl'},T.e_avg),el('div',{class:'val'},pct(mean)))));
+  s.append(el('div',{class:'panel'},el('h3',{},T.e_top),
     el('div',{html:hbars(top.map(r=>({label:r.it+' '+(r.desc||'').slice(0,16),v:r.churn*100})),{fmtV:v=>v.toFixed(0)+'%',color:r=>r.v>60?COVER:BRAND})})));
-})();
+}
 
 // ---------- EXCECOES (TS segue o lag) ----------
 function renderExcec(){const s=$('#excec');s.innerHTML='';
-  s.append(el('h2',{},'Exceções'),el('div',{class:'sub'},`Órfãos, tracking signal fora de controle (leitura ${lagsel.options[lagsel.selectedIndex].text}) e itens novos/descontinuados.`));
+  s.append(el('h2',{},T.tabs[6]),el('div',{class:'sub'},T.x_sub(curReading())));
   const ts=V().metrics.filter(r=>Math.abs(r.tracking_signal||0)>4).sort((a,b)=>Math.abs(b.tracking_signal)-Math.abs(a.tracking_signal));
   const arr=Object.entries(DIM).map(([it,d])=>({it,...d}));
   const novos=arr.filter(r=>r.status==='novo'),desc=arr.filter(r=>r.status==='descontinuado');
   const listPanel=(title,a,fn)=>el('div',{class:'panel'},el('h3',{},`${title} (${a.length})`),
     el('div',{class:'scroll',style:'max-height:260px'},el('div',{class:'small'},a.length?a.map(fn).join(' · '):'—')));
   s.append(el('div',{class:'grid2'},
-    listPanel('Previsto e não recebido (UPI)',DATA.orfaos.previsto_nao_recebido,x=>x),
-    listPanel('Recebido sem previsão',DATA.orfaos.recebido_sem_previsao,x=>x)));
-  const t=el('table');t.append(el('tr',{},...['Item','Descrição','TS','Bias','Classe'].map((h,i)=>el('th',{class:i<2?'l':''},h))));
+    listPanel(T.x_prev_nr,DATA.orfaos.previsto_nao_recebido,x=>x),
+    listPanel(T.x_recv_np,DATA.orfaos.recebido_sem_previsao,x=>x)));
+  const t=el('table');t.append(el('tr',{},...[[T.x_th_item,'l'],[T.x_th_desc,'l'],[T.x_th_ts,''],[T.x_th_bias,''],[T.x_th_classe,'']].map(([h,cl])=>el('th',{class:cl},h))));
   ts.forEach(r=>{const d=DIM[r.item]||{};t.append(el('tr',{},el('td',{class:'l'},r.item),el('td',{class:'l'},(d.desc||'').slice(0,26)),
-    el('td',{},r.tracking_signal),el('td',{},pctS(r.bias)),el('td',{},el('span',{class:'cl cl-'+r.classe},r.classe_label))));});
-  s.append(el('div',{class:'panel'},el('h3',{},`Tracking signal fora de controle |TS|>4 (${ts.length})`),el('div',{class:'scroll'},t)));
+    el('td',{},r.tracking_signal),el('td',{},pctS(r.bias)),el('td',{},el('span',{class:'cl cl-'+r.classe},clLabel(r.classe)))));});
+  s.append(el('div',{class:'panel'},el('h3',{},T.x_ts(ts.length)),el('div',{class:'scroll'},t)));
   s.append(el('div',{class:'grid2'},
-    listPanel('Itens novos (entraram no ano)',novos,r=>r.it),
-    listPanel('Itens descontinuados (saíram)',desc,r=>r.it)));
+    listPanel(T.x_new,novos,r=>r.it),
+    listPanel(T.x_disc,desc,r=>r.it)));
 }
 
 // ---------- boot ----------
 function renderDynamic(){renderVisao();renderRankings();renderFicha();renderMestre();renderExcec();}
-renderDynamic();setLagNote();
+function renderAll(){renderChrome();renderDynamic();renderLag();renderEstab();}
+function setLang(lang){
+  L=(lang==='en')?'en':'pt'; T=I18N[L]; LOCALE=T.loc; DSEP=T.dsep;
+  try{localStorage.setItem('fc_lang',L);}catch(e){}
+  langsel.value=L;
+  renderAll();
+}
+setLang(L);
 </script>
 </body>
 </html>
