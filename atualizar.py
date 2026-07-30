@@ -31,11 +31,24 @@ def _resource(nome):
     return os.path.join(base, nome)
 
 
+def _template_path(app):
+    """Escolhe o template do dashboard.
+
+    Prefere um 'dashboard_template.html' ao lado do programa: assim da para
+    trocar o visual/idioma do dashboard so copiando o arquivo novo, SEM
+    recompilar o .exe. Se nao houver, usa o template embutido no pacote.
+    """
+    externo = os.path.join(app, "dashboard_template.html")
+    if os.path.isfile(externo):
+        return externo
+    return _resource("dashboard_template.html")
+
+
 def executar():
     app = _app_dir()
     data_dir = os.path.join(app, "data")
     outdir = os.path.join(app, "saida")
-    template = _resource("dashboard_template.html")
+    template = _template_path(app)
 
     if not os.path.isdir(data_dir):
         raise SystemExit(
@@ -45,6 +58,8 @@ def executar():
 
     cfg = Config(data_dir=data_dir, logo_path=os.path.join(data_dir, "logo.png"))
     print(f"Lendo arquivos de: {data_dir}")
+    origem_tpl = "ao lado do programa" if template == os.path.join(app, "dashboard_template.html") else "embutido no pacote"
+    print(f"Template do dashboard: {origem_tpl}")
     model = build_model(cfg)
     os.makedirs(outdir, exist_ok=True)
 
