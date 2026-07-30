@@ -8,10 +8,10 @@ icone = "data/logo.ico" if os.path.exists("data/logo.ico") else None
 
 a = Analysis(
     ["atualizar.py"],
-    pathex=[],
+    pathex=[SPECPATH],                          # acha os modulos locais (forecast_accuracy etc.)
     binaries=[],
     datas=[("dashboard_template.html", ".")],   # template embutido no .exe
-    hiddenimports=["openpyxl.cell._writer"],
+    hiddenimports=["forecast_accuracy", "dashboard_build", "openpyxl.cell._writer"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
