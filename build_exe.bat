@@ -1,9 +1,33 @@
 @echo off
+cd /d "%~dp0"
 REM ============================================================
 REM  Gera o AtualizarDashboard.exe (Windows) - rodar UMA vez,
 REM  numa maquina que tenha Python 3.9+ instalado.
 REM  Depois de gerado, o .exe roda sem Python.
 REM ============================================================
+
+echo Conferindo os arquivos necessarios nesta pasta...
+set FALTA=0
+for %%F in (atualizar.py forecast_accuracy.py dashboard_build.py dashboard_template.html atualizar.spec) do (
+    if not exist "%%~F" (
+        echo   *** FALTANDO: %%~F
+        set FALTA=1
+    ) else (
+        echo   ok: %%~F
+    )
+)
+if "%FALTA%"=="1" (
+    echo.
+    echo ============================================================
+    echo  ERRO: os arquivos marcados FALTANDO nao estao nesta pasta.
+    echo  Coloque TODOS na MESMA pasta deste build_exe.bat e rode de novo.
+    echo  Pasta atual: %CD%
+    echo ============================================================
+    pause
+    exit /b 1
+)
+echo Todos presentes. Continuando...
+echo.
 
 echo Instalando dependencias de build...
 python -m pip install --upgrade pip
