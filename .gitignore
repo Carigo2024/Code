@@ -12,7 +12,9 @@ saida/
 # Dashboard renderizado com dados (proprietario) - template e gerador ficam versionados
 /dashboard.html
 
-# Artefatos de build do PyInstaller (o .spec e o .bat ficam versionados)
+# Artefatos de build do PyInstaller (atualizar.spec e o .bat ficam versionados;
+# AtualizarDashboard.spec e gerado pelo modo script)
 build/
 dist/
 *.ico
+AtualizarDashboard.spec
