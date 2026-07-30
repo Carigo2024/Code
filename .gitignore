@@ -2,3 +2,19 @@
 *.png
 __pycache__/
 *.pyc
+
+# Dados de origem (proprietarios) e saidas derivadas
+data/
+saida/
+*.xlsx
+*.csv
+*.json
+# Dashboard renderizado com dados (proprietario) - template e gerador ficam versionados
+/dashboard.html
+
+# Artefatos de build do PyInstaller (atualizar.spec e o .bat ficam versionados;
+# AtualizarDashboard.spec e gerado pelo modo script)
+build/
+dist/
+*.ico
+AtualizarDashboard.spec
