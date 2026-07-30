@@ -2,19 +2,14 @@
 cd /d "%~dp0"
 REM ============================================================
 REM  Gera o AtualizarDashboard.exe (Windows) - rodar UMA vez,
-REM  numa maquina que tenha Python 3.9+ instalado.
-REM  Depois de gerado, o .exe roda sem Python.
+REM  numa maquina com Python 3.9+ (marque "Add Python to PATH").
+REM  Usa MODO SCRIPT: o PyInstaller acha os modulos locais sozinho.
 REM ============================================================
 
 echo Conferindo os arquivos necessarios nesta pasta...
 set FALTA=0
-for %%F in (atualizar.py forecast_accuracy.py dashboard_build.py dashboard_template.html atualizar.spec) do (
-    if not exist "%%~F" (
-        echo   *** FALTANDO: %%~F
-        set FALTA=1
-    ) else (
-        echo   ok: %%~F
-    )
+for %%F in (atualizar.py forecast_accuracy.py dashboard_build.py dashboard_template.html) do (
+    if not exist "%%~F" ( echo   *** FALTANDO: %%~F & set FALTA=1 ) else ( echo   ok: %%~F )
 )
 if "%FALTA%"=="1" (
     echo.
@@ -26,7 +21,7 @@ if "%FALTA%"=="1" (
     pause
     exit /b 1
 )
-echo Todos presentes. Continuando...
+echo Todos presentes.
 echo.
 
 echo Instalando dependencias de build...
@@ -36,21 +31,27 @@ if errorlevel 1 goto erro
 
 echo.
 echo Gerando icone a partir do logo (se existir data\logo.png)...
-python -c "from PIL import Image; import os; p='data/logo.png'; (Image.open(p).convert('RGBA').save('data/logo.ico', sizes=[(256,256),(64,64),(32,32),(16,16)])) if os.path.exists(p) else None"
+set ICONE=
+python -c "from PIL import Image; import os; p='data/logo.png'; (Image.open(p).convert('RGBA').save('data/logo.ico', sizes=[(256,256),(64,64),(32,32),(16,16)])) if os.path.exists(p) else None" 2>NUL
+if exist "data\logo.ico" set ICONE=--icon "data\logo.ico"
 
 echo.
-echo Empacotando com PyInstaller...
-python -m PyInstaller --clean --noconfirm atualizar.spec
+echo Empacotando (modo script - encontra forecast_accuracy e dashboard_build automaticamente)...
+python -m PyInstaller --clean --noconfirm --onefile --console --name AtualizarDashboard ^
+  --add-data "dashboard_template.html;." ^
+  --hidden-import openpyxl.cell._writer ^
+  --exclude-module matplotlib --exclude-module tkinter --exclude-module scipy ^
+  %ICONE% atualizar.py
 if errorlevel 1 goto erro
 
 echo.
 echo ============================================================
-echo  Pronto!  O executavel esta em:  dist\AtualizarDashboard.exe
+echo  Pronto! O executavel esta em:  dist\AtualizarDashboard.exe
+echo  Use SEMPRE esse arquivo recem-gerado (nao uma copia antiga).
 echo.
 echo  Para usar: coloque o .exe numa pasta com uma subpasta 'data'
-echo  contendo os Order_NN_2026.xlsx, o Received_itens_2026.xlsx
-echo  e (opcional) o logo.png. Rode o .exe e pegue os resultados
-echo  na subpasta 'saida'.
+echo  contendo os Order NN 2026.xlsx, o Received_itens_2026.xlsx e
+echo  (opcional) o logo.png. Rode o .exe -> resultados em 'saida'.
 echo ============================================================
 pause
 exit /b 0
