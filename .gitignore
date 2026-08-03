@@ -2,3 +2,9 @@
 *.png
 __pycache__/
 *.pyc
+
+# Dados de referencia da empresa (NAO versionar: estoque, MRP, VBA reais)
+dados_ref/
+*.xlsx
+*.xlsm
+*.xls
