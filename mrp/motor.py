@@ -52,6 +52,8 @@ class Decisao:
     saldo_min: float = 0.0
     consumo_diario: float = 0.0
     cobertura_dias: float = 0.0
+    # necessidade mensal time-phased (planned receipts por mês de disponibilidade)
+    necessidade_mensal: list[float] = field(default_factory=list)
 
     # cruzamento com Protheus
     necessidade_protheus_total: float = 0.0
@@ -120,6 +122,18 @@ def decidir(
         saldo.append(corrente)
     d.saldo_projetado = saldo
     d.saldo_min = min(saldo) if saldo else estoque_base
+
+    # necessidade mensal time-phased: quanto precisa ficar DISPONÍVEL em cada mês
+    # para manter o saldo >= estoque de segurança (planned receipts por período).
+    receipts = [0.0] * n
+    proj = estoque_base
+    for m in range(n):
+        proj = proj + entradas[m] - saidas[m]
+        if proj < item.estoque_seguranca:
+            need = _aplicar_lote(item.estoque_seguranca - proj, item.lote_minimo, item.lote_economico)
+            receipts[m] = need
+            proj += need
+    d.necessidade_mensal = receipts
 
     # --- ruptura: 1º mês com saldo < estoque de segurança ---
     for m in range(n):

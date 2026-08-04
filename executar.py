@@ -25,6 +25,7 @@ from mrp import (
     ler_relatorio_mrp,
 )
 from mrp.exportador import exportar
+from mrp.exportador_modelo import exportar_modelo
 
 
 def executar(caminho_mrp: str, caminho_estoque: str, caminho_saida: str) -> int:
@@ -44,13 +45,17 @@ def executar(caminho_mrp: str, caminho_estoque: str, caminho_saida: str) -> int:
 
     decisoes = decidir_todos(itens, estoques, periodos)
     exportar(decisoes, caminho_saida, periodos)
+    # exportação no layout do arquivo-modelo (importados) — sufixo _modelo
+    caminho_modelo = caminho_saida.replace(".xlsx", "_modelo.xlsx")
+    n_mod = exportar_modelo(decisoes, caminho_modelo, periodos)
 
     urg = sum(d.urgente for d in decisoes)
     div = sum(d.divergente_do_protheus for d in decisoes)
     rev = sum(d.revisao_manual for d in decisoes)
     print(f"OK: {len(decisoes)} itens analisados | {urg} urgentes | "
           f"{div} divergentes do Protheus | {rev} revisão manual.")
-    print(f"Resultado exportado em: {caminho_saida}")
+    print(f"Análise completa exportada em: {caminho_saida}")
+    print(f"Layout do modelo (importados, {n_mod} itens) em: {caminho_modelo}")
     return 0
 
 
