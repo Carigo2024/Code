@@ -32,6 +32,7 @@ class Decisao:
     codigo: str
     descricao: str
     tipo: str
+    unidade: str                  # unidade de medida (UN, G, ...)
     natureza: str                 # Comprar / Produzir / Verificar
     acao: str                     # texto do status
     volume: float                 # quanto pedir (0 se nada)
@@ -92,6 +93,7 @@ def decidir(
         codigo=item.codigo,
         descricao=item.descricao,
         tipo=item.tipo,
+        unidade=item.unidade or "UN",
         natureza=config.TIPO_NATUREZA.get(item.tipo, "Verificar"),
         acao="",
         volume=0.0,

@@ -81,7 +81,7 @@ def exportar_modelo(
         ws.cell(row=linha, column=1, value=d.codigo)
         ws.cell(row=linha, column=2, value=f"{d.codigo}-")  # COMPONENT UPI: PENDENTE fonte real
         ws.cell(row=linha, column=3, value=d.descricao)
-        ws.cell(row=linha, column=4, value="UN")
+        ws.cell(row=linha, column=4, value=d.unidade)
         for k in range(n):
             v = d.necessidade_mensal[k] if k < len(d.necessidade_mensal) else 0.0
             cc = ws.cell(row=linha, column=col_ini_mes + k, value=round(v))
