@@ -2,3 +2,7 @@
 *.png
 __pycache__/
 *.pyc
+
+# Saidas da IA de PCP (geradas a cada execucao)
+saida_simulacao/
+**/saida/

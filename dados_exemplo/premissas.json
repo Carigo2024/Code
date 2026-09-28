@@ -1,0 +1,14 @@
+{
+  "horizonte_semanas": 12,
+  "semanas_congeladas": 1,
+  "nivel_servico": 0.95,
+  "percentil_lead_time": 90,
+  "usar_centro_alternativo": true,
+  "amostras_minimas_aprendizado": 3,
+  "suavizacao_aprendizado": 0.3,
+  "epocas_treino_inicial": 300,
+  "epocas_treino_por_ciclo": 20,
+  "camadas_rede": [
+    16
+  ]
+}

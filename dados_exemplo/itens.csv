@@ -1,0 +1,10 @@
+codigo,descricao,tipo,lead_time,lote_minimo,lote_multiplo,estoque_seguranca,refugo,centro,centro_alternativo,horas_por_unidade,fornecedor,custo
+CAD,Cadeira,fabricado,1,0,10,20,0.0,MONTAGEM,MONTAGEM2,0.5,,180
+MES,Mesa,fabricado,1,0,5,8,0.0,MONTAGEM,MONTAGEM2,1.2,,520
+BAN,Banco,fabricado,1,0,10,10,0.0,MONTAGEM,MONTAGEM2,0.3,,90
+ASS,Assento estofado,fabricado,1,0,20,0,0.0,ESTOFARIA,,0.25,,45
+MAD,Madeira (m),comprado,2,0,50,0,0.0,,,0.0,Madeireira Sul,18
+PAR,Parafuso,comprado,1,1000,500,0,0.0,,,0.0,Fixa Tudo,0.15
+ESP,Espuma,comprado,2,0,20,0,0.0,,,0.0,Espumas SP,12
+TEC,Tecido (m),comprado,3,0,25,0,0.0,,,0.0,Têxtil Norte,22
+VER,Verniz (L),comprado,1,0,5,0,0.0,,,0.0,Química Ltda,35
